@@ -73,6 +73,7 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
 .dots{display:flex;gap:2px;justify-content:center;margin-top:3px}
+.num.alt{font-size:40px}.pq{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 4px}.pq .chip{text-align:center}
 </style></head><body><div id="app"></div>
 <script>
 const API="https://script.google.com/macros/s/AKfycbyoMHlmHx6uFTQRHBhQeO94b0jHDLXqqZ5XV4b5aW7z9TyUN4fmhEFT_j1l4ABN4VwY/exec";
@@ -118,24 +119,34 @@ const sery=w=>!isRest(w)&&!isFuerza(w)&&/Series|Cambios/.test(w.Tipo);
 const isDone=w=>String(w.Completado).toUpperCase()==="SI";
 const isClima=w=>String(w.Completado).toUpperCase()==="CLIMA";
 const hasEv=w=>w.Eval_Completitud_pct!==""&&w.Eval_Completitud_pct!=null;
-const pct=w=>hasEv(w)?N(w.Eval_Completitud_pct):(isDone(w)?100:0);
-const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
-const plKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:sery(w)?N(w.Series_Repeticiones)*N(w.Series_Distancia_m)/1000:N(w.Valor_Distancia_km);
-const km=w=>N(w.Distancia_Real_km)||plKm(w);
-const dsn=w=>N(w.Desnivel_Real_m)||N(w.Desnivel_m);
+const hasAP=w=>w.Completitud_Aguila_pct!==""&&w.Completitud_Aguila_pct!=null;
+const aPct=w=>isDone(w)?(hasAP(w)?N(w.Completitud_Aguila_pct):100):0;
+const pct=w=>hasEv(w)?N(w.Eval_Completitud_pct):aPct(w);
+const blk=w=>{try{const b=JSON.parse(w.Series_Bloques||"[]");return Array.isArray(b)?b:[]}catch(e){return[]}};
+const isAlt=w=>sery(w)&&blk(w).length>0;
+const bTxt=b=>`${N(b.r)}×`+(b.u==="min"?`${N(b.v)}'`:`${N(b.v)} m`);
+const bDet=b=>bTxt(b)+(N(b.rmin)?` · ${pace(b.rmin)}${N(b.rmax)?" – "+pace(b.rmax):""} min/km`:"")+` · rec. ${recF(N(b.rec))}`;
+const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):isAlt(w)?blk(w).map(bTxt).join(" + "):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
+const plKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:isAlt(w)?blk(w).reduce((s,b)=>s+(b.u==="min"?0:N(b.r)*N(b.v)/1000),0):sery(w)?N(w.Series_Repeticiones)*N(w.Series_Distancia_m)/1000:N(w.Valor_Distancia_km);
+// km/desnivel confirmados: el real que cargó el coach; si no, lo planificado × el % que manda (coach > águila)
+const km=w=>N(w.Distancia_Real_km)||plKm(w)*pct(w)/100;
+const dsn=w=>N(w.Desnivel_Real_m)||N(w.Desnivel_m)*pct(w)/100;
 const det=w=>{const d=[];
 if(isRest(w)){if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d}
 if(isFuerza(w)){if(w.Ruta_Circuito)d.push(["Rutina",w.Ruta_Circuito]);if(w.Microciclo)d.push(["Microciclo",w.Microciclo]);if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d}
 if(w.Ruta_Circuito)d.push(["Ruta",w.Ruta_Circuito]);
 if(w.Ritmo_Min)d.push(["Ritmo",pace(w.Ritmo_Min)+(w.Ritmo_Max?" – "+pace(w.Ritmo_Max):"")+" min/km"]);
 if(N(w.Desnivel_m))d.push(["Desnivel","+"+w.Desnivel_m+" m"]);
-if(sery(w))d.push(["Recuperación",recF(N(w.Series_Recuperacion_seg))+" min"]);
+if(isAlt(w))blk(w).forEach((b,i)=>d.push(["Bloque "+(i+1),bDet(b)]));
+else if(sery(w))d.push(["Recuperación",recF(N(w.Series_Recuperacion_seg))+" min"]);
 if(w.Microciclo)d.push(["Microciclo",w.Microciclo]);
 if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);
 if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);
 if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d};
 const detHTML=w=>det(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
-const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
+const hasDom=w=>w.Eval_Dominio_Ritmo_pct!==""&&w.Eval_Dominio_Ritmo_pct!=null;
+const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
+const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
 
 let me=null,W=[],R=[],TM=[],RP=[],tab="home",calM=null,sel=null;
 const app=$("#app");
@@ -166,12 +177,20 @@ function wCard(w,big){
  if(isRest(w))return `<div class="card wk rest"><div class="tag rest">Descanso · ${esc(w.Tipo)}</div><div class="num">Día de recuperación</div>${detHTML(w)}<span class="muted">El coach indicó este descanso. No necesitas marcar nada.</span></div>`;
  const cls=isTest(w)?"test":"",tagPre=isTest(w)?"TEST · ":"";
  let act;
- if(isDone(w))act=`<button class="btn ghost" onclick="setEstado('${w.ID}','NO')">✓ Completado · desmarcar</button>`;
+ if(isDone(w))act=`<button class="btn ghost" onclick="pctUI('${w.ID}')">✓ Completado · ${aPct(w)}% · cambiar %</button><button class="btn" onclick="setEstado('${w.ID}','NO')">Desmarcar</button>`;
  else if(isClima(w))act=`<div class="row"><span class="bd clima">☁️ No realizado por clima</span><button class="btn s" onclick="setEstado('${w.ID}','NO')">Deshacer</button></div>`;
- else act=`<button class="btn pri" onclick="setEstado('${w.ID}','SI')">Marcar como completado</button><button class="btn ghost" onclick="setEstado('${w.ID}','CLIMA')">No realizado por clima</button>`;
- return `<div class="card wk ${cls} ${big?"big":""} ${isDone(w)?"ok":""}"><div class="tag ${cls}">${tagPre}${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""}</div><div class="num">${main(w)}</div>${detHTML(w)}${evalHTML(w)}${act}</div>`}
-async function setEstado(id,v){const w=W.find(x=>x.ID===id);w.Completado=v;render();
- try{await post({action:"update",sheet:"Entrenamientos",id,data:{Completado:v}});if(v==="SI")toast("¡Bien hecho, águila! 🦅")}catch(e){toast("No se pudo guardar")}}
+ else act=`<button class="btn pri" onclick="pctUI('${w.ID}')">Marcar como completado</button><button class="btn ghost" onclick="setEstado('${w.ID}','CLIMA')">No realizado por clima</button>`;
+ return `<div class="card wk ${cls} ${big?"big":""} ${isDone(w)?"ok":""}"><div class="tag ${cls}">${tagPre}${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""}</div><div class="num${isAlt(w)?" alt":""}">${main(w)}</div>${detHTML(w)}${evalHTML(w)}${act}</div>`}
+async function setEstado(id,v,p=""){const w=W.find(x=>x.ID===id);w.Completado=v;w.Completitud_Aguila_pct=p;render();
+ try{await post({action:"update",sheet:"Entrenamientos",id,data:{Completado:v,Completitud_Aguila_pct:p}});if(v==="SI")toast("¡Bien hecho, águila! 🦅")}catch(e){toast("No se pudo guardar")}}
+function pctUI(id){const w=W.find(x=>x.ID===id),v=isDone(w)&&hasAP(w)?N(w.Completitud_Aguila_pct):100;
+ modal(`<h2>¿Cuánto completaste?</h2><div class="muted">${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""} · ${main(w)}</div><div class="num" id="pv" style="text-align:center">${v}%</div>
+ <div class="pq">${[25,50,75,100].map(n=>`<button type="button" class="chip" onclick="setP(${n})">${n}%</button>`).join("")}</div>
+ <input id="pp" type="range" min="5" max="100" step="5" value="${v}" oninput="$('#pv').textContent=this.value+'%'">
+ ${hasEv(w)?`<div class="muted" style="font-size:13px">El coach ya evaluó este entrenamiento con ${N(w.Eval_Completitud_pct)}%. Ese es el que cuenta.</div>`:""}
+ <button class="btn pri" onclick="savePct('${id}')">Guardar</button>`)}
+function setP(n){$("#pp").value=n;$("#pv").textContent=n+"%"}
+function savePct(id){const p=+$("#pp").value;closeM();setEstado(id,"SI",p)}
 function go(d){tab="cal";sel=d;calM=d.slice(0,7);render();scrollTo(0,0)}
 function home(){
  const t=today(),tw=W.filter(w=>w.Fecha===t),mon=monday(t),we=addDays(mon,6);
