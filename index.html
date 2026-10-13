@@ -4,7 +4,9 @@
 <meta name="theme-color" content="#000000">
 <title>Águilas · Team PCarrera 4x4</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23d62839%22/%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22M32%2010c3%200%205%202%205%205l1%202%202-1%2021-6c-2%2010-8%2019-16%2024l-4%202%203%2012-12-7-12%207%203-12-4-2C10%2027%204%2018%202%2010l21%206%202%201%201-2c0-3%202-6%206-6z%22%20transform%3D%22translate%280%206%29%20scale%281%29%22/%3E%3Cpath%20fill%3D%22%23d62839%22%20d%3D%22M36%2021l6%203-6%201z%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2219%22%20r%3D%221.4%22%20fill%3D%22%23d62839%22/%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <style>:root{--bg:#0d0d0d;--c1:#171717;--c2:#232323;--ln:#2f2f2f;--tx:#f4f4f4;--mu:#9b9b9b;--rd:#d62839;--gr:#2fbf71;--ye:#ffcc00;--bl:#1d4ed8}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif}
@@ -122,11 +124,20 @@ const hasEv=w=>w.Eval_Completitud_pct!==""&&w.Eval_Completitud_pct!=null;
 const hasAP=w=>w.Completitud_Aguila_pct!==""&&w.Completitud_Aguila_pct!=null;
 const aPct=w=>isDone(w)?(hasAP(w)?N(w.Completitud_Aguila_pct):100):0;
 const pct=w=>hasEv(w)?N(w.Eval_Completitud_pct):aPct(w);
+// Series_Bloques guarda la secuencia COMPLETA (bloque × veces) para que cualquier lector sume bien los km;
+// el 1er tramo lleva S (veces que se repite el bloque) y SR (recuperación entre bloques, seg).
 const blk=w=>{try{const b=JSON.parse(w.Series_Bloques||"[]");return Array.isArray(b)?b:[]}catch(e){return[]}};
+const bset=w=>{const a=blk(w),S=Math.round(N(a[0]&&a[0].S))||1;return S>1&&a.length%S===0?{S,SR:N(a[0].SR),b:a.slice(0,a.length/S)}:{S:1,SR:0,b:a}};
 const isAlt=w=>sery(w)&&blk(w).length>0;
-const bTxt=b=>`${N(b.r)}×`+(b.u==="min"?`${N(b.v)}'`:`${N(b.v)} m`);
-const bDet=b=>bTxt(b)+(N(b.rmin)?` · ${pace(b.rmin)}${N(b.rmax)?" – "+pace(b.rmax):""} min/km`:"")+` · rec. ${recF(N(b.rec))}`;
-const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):isAlt(w)?blk(w).map(bTxt).join(" + "):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
+const bTxt=b=>(N(b.r)>1?`${N(b.r)}×`:"")+(b.u==="min"?`${N(b.v)}'`:`${N(b.v)} m`);
+const bDet=(b,noRec)=>bTxt(b)+(N(b.rmin)?` · ${pace(b.rmin)}${N(b.rmax)?" – "+pace(b.rmax):""} min/km`:"")+(noRec?"":` · rec. ${recF(N(b.rec))}`);
+// texto corto de un bloque: 5×1000 m (misma distancia) · 100-200-300-400 m (escalera) · 2×400 m + 4×200 m (libre)
+const bsTxt=b=>{const u=b[0].u,un=u==="min"?"'":" m";
+ if(b.every(x=>x.u===u&&N(x.v)===N(b[0].v)))return `${b.reduce((s,x)=>s+N(x.r),0)}×${N(b[0].v)}${un}`;
+ if(b.every(x=>x.u===u&&N(x.r)===1))return b.map(x=>N(x.v)).join("-")+un;
+ return b.map(bTxt).join(" + ")};
+const altTxt=w=>{const{S,b}=bset(w),t=bsTxt(b);return S>1?`${S}×(${t})`:t};
+const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):isAlt(w)?altTxt(w):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
 const plKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:isAlt(w)?blk(w).reduce((s,b)=>s+(b.u==="min"?0:N(b.r)*N(b.v)/1000),0):sery(w)?N(w.Series_Repeticiones)*N(w.Series_Distancia_m)/1000:N(w.Valor_Distancia_km);
 // km/desnivel confirmados: el real que cargó el coach; si no, lo planificado × el % que manda (coach > águila)
 const km=w=>N(w.Distancia_Real_km)||plKm(w)*pct(w)/100;
@@ -137,7 +148,7 @@ if(isFuerza(w)){if(w.Ruta_Circuito)d.push(["Rutina",w.Ruta_Circuito]);if(w.Micro
 if(w.Ruta_Circuito)d.push(["Ruta",w.Ruta_Circuito]);
 if(w.Ritmo_Min)d.push(["Ritmo",pace(w.Ritmo_Min)+(w.Ritmo_Max?" – "+pace(w.Ritmo_Max):"")+" min/km"]);
 if(N(w.Desnivel_m))d.push(["Desnivel","+"+w.Desnivel_m+" m"]);
-if(isAlt(w))blk(w).forEach((b,i)=>d.push(["Bloque "+(i+1),bDet(b)]));
+if(isAlt(w)){const{S,SR,b}=bset(w);if(S>1)d.push(["Serie",`se repite ${S} veces · rec. entre series ${recF(SR)} min`]);b.forEach((x,i)=>d.push(["Repetición "+(i+1),bDet(x,S>1&&i===b.length-1)]))}
 else if(sery(w))d.push(["Recuperación",recF(N(w.Series_Recuperacion_seg))+" min"]);
 if(w.Microciclo)d.push(["Microciclo",w.Microciclo]);
 if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);
@@ -149,8 +160,14 @@ const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",St
 const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
 
 let me=null,W=[],R=[],TM=[],RP=[],tab="home",calM=null,sel=null;
+// Caché local: se muestra lo último guardado al instante y se actualiza por detrás.
+// sync: "" al día · "upd" actualizando · "err" sin conexión. rev sube con cada cambio local para no pisarlo con datos viejos.
+let loaded=0,sync="",rev=0;
 const app=$("#app");
 const views={home,cal,races,tiempos};
+const CK=()=>"pc_cache_"+me.ID;
+function saveC(){try{localStorage.setItem(CK(),JSON.stringify({W,R,TM,RP,D:DISTS}))}catch(e){}}
+const syncTxt=()=>({upd:" · actualizando…",err:" · sin conexión, datos guardados"}[sync]||"");
 
 function init(){try{const s=JSON.parse(localStorage.getItem("pc_a"));if(s&&s.ID){me=s;return load()}}catch(e){}showLogin()}
 async function showLogin(){
@@ -160,19 +177,24 @@ async function showLogin(){
  catch(e){app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar con el servidor. <button class="btn pri" onclick="showLogin()">Reintentar</button></div></main>'}}
 function doLogin(){const a=_A.find(x=>String(x.ID)===$("#ln").value);if(!a||!same(a.PIN,$("#lp").value))return toast("PIN incorrecto");
  me={ID:String(a.ID),Nombre:a.Nombre};try{localStorage.setItem("pc_a",JSON.stringify(me))}catch(e){}load()}
-function logout(){try{localStorage.removeItem("pc_a")}catch(e){}me=null;tab="home";showLogin()}
+function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];loaded=0;sync="";tab="home";showLogin()}
 async function load(){
- app.innerHTML=hdr("Águilas")+'<main class="muted">Cargando tu semana…</main>';
- try{await loadDists();
- const[w,r,tm,p]=await Promise.all([get("Entrenamientos"),get("Carreras"),get("Tiempos"),get("RecordsPersonales")]);
+ if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
+ if(loaded){sync="upd";render()}else app.innerHTML=hdr("Águilas")+'<main class="muted">Cargando tu semana…</main>';
+ const r0=rev;
+ try{const[,w,r,tm,p]=await Promise.all([loadDists(),get("Entrenamientos"),get("Carreras"),get("Tiempos"),get("RecordsPersonales")]);
+ sync="";
+ if(rev!==r0)return render(); // hubo un cambio local mientras llegaban los datos: no se pisa
  W=w.filter(x=>same(x.ID_Aguila,me.ID)).map(x=>({...x,Fecha:nd(x.Fecha)}));
  R=r.filter(x=>same(x.ID_Aguila,me.ID)).map(x=>({...x,Fecha:nd(x.Fecha)}));
  TM=tm.filter(x=>same(x.ID_Aguila,me.ID));
- RP=p.filter(x=>same(x.ID_Aguila,me.ID));render()}
- catch(e){app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar. <button class="btn pri" onclick="load()">Reintentar</button></div></main>'}}
+ RP=p.filter(x=>same(x.ID_Aguila,me.ID));loaded=1;saveC();
+ const keep=[...app.querySelectorAll("input[id],select[id]")].map(e=>[e.id,e.value]); // no borrar lo que el águila esté escribiendo
+ render();keep.forEach(([i,v])=>{const e=document.getElementById(i);if(e)e.value=v})}
+ catch(e){if(loaded){sync="err";render()}else app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar. <button class="btn pri" onclick="load()">Reintentar</button></div></main>'}}
 function render(){
  const nav=[["home","🏠","Inicio"],["cal","📅","Calendario"],["races","🏁","Carreras"],["tiempos","⏱️","Tus tiempos"]].map(([k,i,t])=>`<button class="${tab===k?"on":""}" onclick="tab='${k}';render();scrollTo(0,0)"><span>${i}</span>${t}</button>`).join("");
- app.innerHTML=hdr(esc(me.Nombre),'<button class="btn s" onclick="load()">↻</button><button class="btn s" onclick="logout()">Salir</button>')+`<main>${views[tab]()}</main><nav class="bar">${nav}</nav>`}
+ app.innerHTML=hdr(esc(me.Nombre)+syncTxt(),'<button class="btn s" onclick="load()">↻</button><button class="btn s" onclick="logout()">Salir</button>')+`<main>${views[tab]()}</main><nav class="bar">${nav}</nav>`}
 function wCard(w,big){
  if(isRest(w))return `<div class="card wk rest"><div class="tag rest">Descanso · ${esc(w.Tipo)}</div><div class="num">Día de recuperación</div>${detHTML(w)}<span class="muted">El coach indicó este descanso. No necesitas marcar nada.</span></div>`;
  const cls=isTest(w)?"test":"",tagPre=isTest(w)?"TEST · ":"";
@@ -181,7 +203,7 @@ function wCard(w,big){
  else if(isClima(w))act=`<div class="row"><span class="bd clima">☁️ No realizado por clima</span><button class="btn s" onclick="setEstado('${w.ID}','NO')">Deshacer</button></div>`;
  else act=`<button class="btn pri" onclick="pctUI('${w.ID}')">Marcar como completado</button><button class="btn ghost" onclick="setEstado('${w.ID}','CLIMA')">No realizado por clima</button>`;
  return `<div class="card wk ${cls} ${big?"big":""} ${isDone(w)?"ok":""}"><div class="tag ${cls}">${tagPre}${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""}</div><div class="num${isAlt(w)?" alt":""}">${main(w)}</div>${detHTML(w)}${evalHTML(w)}${act}</div>`}
-async function setEstado(id,v,p=""){const w=W.find(x=>x.ID===id);w.Completado=v;w.Completitud_Aguila_pct=p;render();
+async function setEstado(id,v,p=""){const w=W.find(x=>x.ID===id);w.Completado=v;w.Completitud_Aguila_pct=p;rev++;saveC();render();
  try{await post({action:"update",sheet:"Entrenamientos",id,data:{Completado:v,Completitud_Aguila_pct:p}});if(v==="SI")toast("¡Bien hecho, águila! 🦅")}catch(e){toast("No se pudo guardar")}}
 function pctUI(id){const w=W.find(x=>x.ID===id),v=isDone(w)&&hasAP(w)?N(w.Completitud_Aguila_pct):100;
  modal(`<h2>¿Cuánto completaste?</h2><div class="muted">${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""} · ${main(w)}</div><div class="num" id="pv" style="text-align:center">${v}%</div>
@@ -221,7 +243,7 @@ function races(){
 async function addRace(){const n=$("#rn").value.trim(),d=$("#rd").value,k=$("#rk").value,s=$("#rs").value.trim();
  if(!n||!d||!k||!s)return toast("Completa nombre, fecha, distancia y sitio");
  const r={ID:uid("C"),ID_Aguila:me.ID,Nombre_Carrera:n,Fecha:d,Distancia_km:+k,Sitio:s,Estado:"Pendiente"};
- R.push({...r});render();
+ R.push({...r});rev++;saveC();render();
  try{await post({action:"add",sheet:"Carreras",data:r});toast("Enviada. El coach debe aprobarla.")}catch(e){toast("No se pudo guardar")}}
 function tiempos(){
  const rows=DISTS.map(([k,l])=>{const r=TM.find(x=>x.Distancia===k);
