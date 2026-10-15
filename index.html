@@ -72,6 +72,17 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .pacer select{width:92px;flex:none;margin:0;padding:12px 6px}
 .tpl-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--ln)}
 .tpl-row b{flex:1;font-weight:600}
+.cf{border-color:var(--ye);background:linear-gradient(160deg,#262008,var(--c1))}.cf .tag{color:var(--ye)}.cf .num{font-size:60px;margin-bottom:4px}
+.cf-bar{margin:22px 4px 8px}
+.cf-tr{position:relative;height:12px;border-radius:99px;background:var(--c2)}
+.cf-fl{height:100%;border-radius:99px;background:var(--gr);max-width:100%}
+.cf-p{position:absolute;top:50%;width:32px;height:32px;margin:-16px 0 0 -16px;padding:0;border:0;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.cf-p i{width:14px;height:14px;border-radius:50%;background:#555;border:2px solid var(--c1)}
+.cf-p.on i{background:var(--gr)}.cf-p.sel i{outline:2px solid var(--tx);outline-offset:1px}
+.cf-lb{position:relative;height:18px;margin-top:8px;font-size:12px;color:var(--mu)}
+.cf-lb span{position:absolute;transform:translateX(-50%);white-space:nowrap}.cf-lb span.end{transform:translateX(-100%);color:var(--tx);font-weight:600}
+.cf-km{font-size:18px}.cf-km b{font-family:'Barlow Condensed',sans-serif;font-size:30px}
+.cf-tip{font-size:14px;margin:6px 0 4px;min-height:20px}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
 .dots{display:flex;gap:2px;justify-content:center;margin-top:3px}
@@ -159,14 +170,46 @@ const hasDom=w=>w.Eval_Dominio_Ritmo_pct!==""&&w.Eval_Dominio_Ritmo_pct!=null;
 const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
 const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
 
-let me=null,W=[],R=[],TM=[],RP=[],tab="home",calM=null,sel=null;
+/* ---------- DLC Maratón CAF ----------
+ Config: CAF_FECHA (YYYY-MM-DD), CAF_NOMBRE · Aguilas.CAF_Distancia (21 | 42 | vacío)
+ CAF_Recorrido: ID, Distancia, Km, Sitio (lo llena Gladimir) · CAF_Dominio: ID, ID_Aguila, Fecha, Km_Dominados, Nota (lo escribe el coach; una fila por actualización, manda la más reciente) */
+const getS=s=>get(s).then(r=>Array.isArray(r)?r:null).catch(()=>null); // null = falló o la pestaña no existe todavía
+const cafD=v=>{const n=Math.round(N(v));return n===21||n===42?n:0};
+const CAF_META={21:21.1,42:42.2};
+const kmF=v=>String(Math.round(N(v)*10)/10);
+const cafCfg=c=>{const g=k=>((c||[]).find(x=>x.Clave===k)||{}).Valor;return{f:nd(g("CAF_FECHA")),n:String(g("CAF_NOMBRE")||"Maratón CAF").trim()}};
+const cafPts=(rc,d)=>(rc||[]).filter(x=>cafD(x.Distancia)===d&&x.Km!==""&&x.Km!=null&&String(x.Sitio??"").trim()).map(x=>({k:N(x.Km),s:String(x.Sitio).trim()})).sort((a,b)=>a.k-b.k);
+// historial de un águila, de la más vieja a la más reciente (sort estable: mismo día = orden de la hoja)
+const cafHist=(dm,id)=>(dm||[]).filter(x=>same(x.ID_Aguila,id)&&x.Km_Dominados!==""&&x.Km_Dominados!=null).map(x=>({...x,Fecha:nd(x.Fecha),Km_Dominados:N(x.Km_Dominados)})).sort((a,b)=>a.Fecha<b.Fecha?-1:a.Fecha>b.Fecha?1:0);
+// tarjeta completa: o = {d, f, n, pts, h}; pid = prefijo único para los ids del DOM
+function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h.length-1],prev=o.h[o.h.length-2],dom=last?Math.min(last.Km_Dominados,meta):0;
+ const days=o.f?diff(o.f,t):null,pts=o.pts,hit=[...pts].reverse().find(p=>p.k<=dom),nx=pts.find(p=>p.k>dom);
+ const head=days==null?`<div class="num">—</div><b>Fecha del ${esc(o.n)} por confirmar</b>`:`<div class="num">${days===0?"¡Hoy!":days}</div><b>${days===0?"¡Hoy es el "+esc(o.n)+"!":(days===1?"día":"días")+" para el "+esc(o.n)}</b>${o.f?`<div class="muted">${fmtL(o.f)}</div>`:""}`;
+ const marks=pts.map((p,i)=>`<button type="button" class="cf-p ${p.k<=dom?"on":""}" style="left:${Math.min(p.k/meta,1)*100}%" onclick="cafPt('${pid}',${i})" aria-label="Km ${kmF(p.k)}: ${esc(p.s)}"><i></i></button>`).join("");
+ const lbls=pts.filter(p=>meta-p.k>=2.5).map(p=>`<span style="left:${p.k/meta*100}%">${kmF(p.k)}</span>`).join("")+`<span class="end" style="left:100%">🏁 ${kmF(meta)}</span>`;
+ const dTxt=!last?`<span class="muted">El coach aún no ha cargado tus km dominados.</span>`
+  :`<div class="cf-km"><b>${kmF(dom)}</b> de ${kmF(meta)} km dominados</div>`+(prev?`<div class="muted" style="font-size:13px">${last.Km_Dominados-prev.Km_Dominados>=0?"+":""}${kmF(last.Km_Dominados-prev.Km_Dominados)} km desde el ${fmtL(prev.Fecha)}</div>`:"");
+ const sTxt=!last?"":dom>=meta?`<div class="row"><span>Tienes dominado</span><b>¡El recorrido completo!</b></div>`
+  :(hit?`<div class="row"><span>Tienes dominado hasta</span><b>${esc(hit.s)} · km ${kmF(hit.k)}</b></div>`:"")+(nx?`<div class="row"><span>Próximo punto</span><b>${esc(nx.s)} · km ${kmF(nx.k)} (faltan ${kmF(nx.k-dom)} km)</b></div>`:"");
+ return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${head}
+ <div class="cf-bar"><div class="cf-tr"><div class="cf-fl" style="width:${dom/meta*100}%"></div>${marks}</div><div class="cf-lb">${lbls}</div></div>
+ ${dTxt}<div class="cf-tip muted" id="${pid}tip">${pts.length?"Toca un punto de la barra para ver el sitio.":"El recorrido aún no está cargado."}</div>${sTxt}
+ ${last&&String(last.Nota??"").trim()?`<div class="row"><span>🦅 Coach</span><b>${esc(last.Nota)}</b></div>`:""}
+ ${last?`<div class="muted" style="font-size:12px;margin-top:6px">Actualizado por el coach el ${fmtL(last.Fecha)}</div>`:""}${extra}</div>`}
+const CAFP={};
+function cafPt(pid,i){const p=CAFP[pid][i],el=document.getElementById(pid+"tip");if(el)el.innerHTML=`<b>Km ${kmF(p.k)}</b> · ${esc(p.s)}`;
+ document.querySelectorAll(`#${pid}w .cf-p`).forEach((b,j)=>b.classList.toggle("sel",j===i))}
+// envoltorio: registra los puntos para el tap y pone un id al contenedor
+const cafBox=(o,pid,extra)=>{CAFP[pid]=o.pts;return `<div id="${pid}w">${cafCard(o,pid,extra)}</div>`};
+
+let me=null,W=[],R=[],TM=[],RP=[],CAF=null,tab="home",calM=null,sel=null;
 // Caché local: se muestra lo último guardado al instante y se actualiza por detrás.
 // sync: "" al día · "upd" actualizando · "err" sin conexión. rev sube con cada cambio local para no pisarlo con datos viejos.
 let loaded=0,sync="",rev=0;
 const app=$("#app");
 const views={home,cal,races,tiempos};
 const CK=()=>"pc_cache_"+me.ID;
-function saveC(){try{localStorage.setItem(CK(),JSON.stringify({W,R,TM,RP,D:DISTS}))}catch(e){}}
+function saveC(){try{localStorage.setItem(CK(),JSON.stringify({W,R,TM,RP,CAF,D:DISTS}))}catch(e){}}
 const syncTxt=()=>({upd:" · actualizando…",err:" · sin conexión, datos guardados"}[sync]||"");
 
 function init(){try{const s=JSON.parse(localStorage.getItem("pc_a"));if(s&&s.ID){me=s;return load()}}catch(e){}showLogin()}
@@ -177,11 +220,11 @@ async function showLogin(){
  catch(e){app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar con el servidor. <button class="btn pri" onclick="showLogin()">Reintentar</button></div></main>'}}
 function doLogin(){const a=_A.find(x=>String(x.ID)===$("#ln").value);if(!a||!same(a.PIN,$("#lp").value))return toast("PIN incorrecto");
  me={ID:String(a.ID),Nombre:a.Nombre};try{localStorage.setItem("pc_a",JSON.stringify(me))}catch(e){}load()}
-function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];loaded=0;sync="";tab="home";showLogin()}
+function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];CAF=null;loaded=0;sync="";tab="home";showLogin()}
 async function load(){
- if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
+ if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);CAF=c.CAF||null;if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
  if(loaded){sync="upd";render()}else app.innerHTML=hdr("Águilas")+'<main class="muted">Cargando tu semana…</main>';
- const r0=rev;
+ const r0=rev,cp=loadCAF(); // el DLC CAF va aparte: si tarda o falla no frena la semana
  try{const[,w,r,tm,p]=await Promise.all([loadDists(),get("Entrenamientos"),get("Carreras"),get("Tiempos"),get("RecordsPersonales")]);
  sync="";
  if(rev!==r0)return render(); // hubo un cambio local mientras llegaban los datos: no se pisa
@@ -190,8 +233,14 @@ async function load(){
  TM=tm.filter(x=>same(x.ID_Aguila,me.ID));
  RP=p.filter(x=>same(x.ID_Aguila,me.ID));loaded=1;saveC();
  const keep=[...app.querySelectorAll("input[id],select[id]")].map(e=>[e.id,e.value]); // no borrar lo que el águila esté escribiendo
- render();keep.forEach(([i,v])=>{const e=document.getElementById(i);if(e)e.value=v})}
+ render();keep.forEach(([i,v])=>{const e=document.getElementById(i);if(e)e.value=v});
+ if(await cp){saveC();if(tab==="home")render()}}
  catch(e){if(loaded){sync="err";render()}else app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar. <button class="btn pri" onclick="load()">Reintentar</button></div></main>'}}
+// Maratón CAF: necesita Aguilas (CAF_Distancia), Config (fecha) y las dos pestañas CAF. Si Aguilas o Config fallan se queda lo de caché.
+async function loadCAF(){const[a,c,rc,dm]=await Promise.all([getS("Aguilas"),getS("Config"),getS("CAF_Recorrido"),getS("CAF_Dominio")]);
+ if(!a||!c||!me)return 0;const yo=a.find(x=>same(x.ID,me.ID))||{},d=cafD(yo.CAF_Distancia),cf=cafCfg(c),o=CAF||{};
+ CAF={d,f:cf.f,n:cf.n,pts:rc?cafPts(rc,d):(o.d===d&&o.pts)||[],h:dm?cafHist(dm,me.ID):(o.h||[])};return 1}
+function cafHome(){if(!CAF||!CAF.d||(CAF.f&&CAF.f<today()))return "";return cafBox(CAF,"ca")}
 function render(){
  const nav=[["home","🏠","Inicio"],["cal","📅","Calendario"],["races","🏁","Carreras"],["tiempos","⏱️","Tus tiempos"]].map(([k,i,t])=>`<button class="${tab===k?"on":""}" onclick="tab='${k}';render();scrollTo(0,0)"><span>${i}</span>${t}</button>`).join("");
  app.innerHTML=hdr(esc(me.Nombre)+syncTxt(),'<button class="btn s" onclick="load()">↻</button><button class="btn s" onclick="logout()">Salir</button>')+`<main>${views[tab]()}</main><nav class="bar">${nav}</nav>`}
@@ -224,7 +273,7 @@ function home(){
  const nx=R.filter(r=>r.Estado==="Aprobada"&&r.Fecha>=t).sort((a,b)=>a.Fecha<b.Fecha?-1:1)[0];
  const days=nx?diff(nx.Fecha,t):0;
  return `<h2>Hoy · ${fmtL(t)}</h2>`+(tw.length?tw.map(w=>wCard(w,1)).join(""):`<div class="card wk"><div class="tag">Descanso</div><div class="num">Hoy toca recuperar</div><span class="muted">Estírate, hidrátate y come bien, águila.</span></div>`)
- +`<h2>Tu semana</h2><div class="card"><div class="strip">${strip}</div></div>`
+ +`<h2>Tu semana</h2><div class="card"><div class="strip">${strip}</div></div>`+cafHome()
  +`<div class="stats"><div class="card"><div class="num">${k.toFixed(1)}</div><span class="muted">km esta semana</span></div><div class="card"><div class="num">+${Math.round(ds)}</div><span class="muted">m de desnivel</span></div></div>`
  +(nx?`<div class="card"><div class="tag">Próxima carrera</div><div class="num">${days===0?"¡Hoy!":days}</div><b>${days===0?"":(days===1?"día":"días")+" para "}${esc(nx.Nombre_Carrera)}</b><div class="muted">${fmtL(nx.Fecha)} · ${N(nx.Distancia_km)} km · ${esc(nx.Sitio)}</div></div>`:`<div class="card"><div class="tag">Próxima carrera</div><span class="muted">Aún no tienes carreras aprobadas. Agrégala en la pestaña Carreras.</span></div>`)}
 function mv(n){const[y,m]=calM.split("-").map(Number),d=new Date(y,m-1+n,1);calM=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;sel=null;render()}
