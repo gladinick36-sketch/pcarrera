@@ -72,16 +72,15 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .pacer select{width:92px;flex:none;margin:0;padding:12px 6px}
 .tpl-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--ln)}
 .tpl-row b{flex:1;font-weight:600}
-.cf{border-color:var(--ye);background:linear-gradient(160deg,#262008,var(--c1))}.cf .tag{color:var(--ye)}.cf .num{font-size:60px;margin-bottom:4px}
-.cf-bar{margin:22px 4px 8px}
-.cf-tr{position:relative;height:12px;border-radius:99px;background:var(--c2)}
-.cf-fl{height:100%;border-radius:99px;background:var(--gr);max-width:100%}
-.cf-p{position:absolute;top:50%;width:32px;height:32px;margin:-16px 0 0 -16px;padding:0;border:0;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.cf-p i{width:14px;height:14px;border-radius:50%;background:#555;border:2px solid var(--c1)}
-.cf-p.on i{background:var(--gr)}.cf-p.sel i{outline:2px solid var(--tx);outline-offset:1px}
-.cf-lb{position:relative;height:18px;margin-top:8px;font-size:12px;color:var(--mu)}
-.cf-lb span{position:absolute;transform:translateX(-50%);white-space:nowrap}.cf-lb span.end{transform:translateX(-100%);color:var(--tx);font-weight:600}
-.cf-km{font-size:18px}.cf-km b{font-family:'Barlow Condensed',sans-serif;font-size:30px}
+.cf{border-color:var(--ye);background:linear-gradient(160deg,#262008,var(--c1))}.cf .tag{color:var(--ye)}.cf .num{font-size:64px;margin:0 0 2px}
+.cf-when{display:inline-block;margin:10px 0 0;padding:5px 12px;border-radius:99px;background:var(--c2);font-weight:600;font-size:14px}
+.cf-bar{margin:16px 0 6px}
+.cf-sv{display:block;width:100%;height:110px;cursor:pointer;touch-action:manipulation}
+.cf-a0{fill:#2a2a2a}.cf-l0{fill:none;stroke:#5a5a5a;stroke-width:2;vector-effect:non-scaling-stroke}
+.cf-a1{fill:var(--gr);fill-opacity:.28}.cf-l1{fill:none;stroke:var(--gr);stroke-width:2.5;vector-effect:non-scaling-stroke}
+.cf-cur{stroke:var(--tx);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+.cf-lb{position:relative;height:18px;margin-top:6px;font-size:12px;color:var(--mu)}
+.cf-lb span{position:absolute;transform:translateX(-50%);white-space:nowrap}.cf-lb span:first-child{transform:none}.cf-lb span.end{transform:translateX(-100%);color:var(--tx);font-weight:600}
 .cf-tip{font-size:14px;margin:6px 0 4px;min-height:20px}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
@@ -176,31 +175,43 @@ const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_
 const getS=s=>get(s).then(r=>Array.isArray(r)?r:null).catch(()=>null); // null = falló o la pestaña no existe todavía
 const cafD=v=>{const n=Math.round(N(v));return n===21||n===42?n:0};
 const CAF_META={21:21.1,42:42.2};
-const kmF=v=>String(Math.round(N(v)*10)/10);
+const kmF=v=>String(Math.round(N(v)*10)/10).replace(".",","); // solo para mostrar (coma decimal)
+// Perfil altimétrico del 42K, msnm cada 0,25 km (km 0 a 42). Digitalizado de la imagen oficial: aproximado (± 5 m).
+// El 21K usa la primera mitad del mismo perfil.
+const CAF_ALT=[800,800,800,800,800,804,808,811,814,815,816,817,816,813,809,806,805,804,802,804,804,805,806,808,809,811,815,818,818,815,810,807,805,805,805,806,807,807,806,805,805,805,804,804,803,797,793,791,791,796,800,802,801,796,793,789,787,787,785,782,782,782,780,779,782,786,787,787,785,784,782,782,782,782,781,781,781,782,784,787,790,793,794,791,786,781,776,771,766,763,761,760,761,764,767,768,763,759,755,753,753,752,751,751,751,751,752,753,753,753,753,753,750,748,748,748,748,747,746,745,744,744,743,742,739,737,732,729,724,722,722,730,738,749,755,759,763,766,769,769,771,771,773,774,776,778,782,784,784,781,778,775,773,773,773,773,777,780,779,780,781,781,784,786,787,789,790,791,791];
+const cafAlt=k=>{const i=Math.min(k/.25,CAF_ALT.length-1),a=Math.floor(i),b=Math.min(a+1,CAF_ALT.length-1);return CAF_ALT[a]+(CAF_ALT[b]-CAF_ALT[a])*(i-a)};
 const cafCfg=c=>{const g=k=>((c||[]).find(x=>x.Clave===k)||{}).Valor;return{f:nd(g("CAF_FECHA")),n:String(g("CAF_NOMBRE")||"Maratón CAF").trim()}};
 const cafPts=(rc,d)=>(rc||[]).filter(x=>cafD(x.Distancia)===d&&x.Km!==""&&x.Km!=null&&String(x.Sitio??"").trim()).map(x=>({k:N(x.Km),s:String(x.Sitio).trim()})).sort((a,b)=>a.k-b.k);
 // historial de un águila, de la más vieja a la más reciente (sort estable: mismo día = orden de la hoja)
 const cafHist=(dm,id)=>(dm||[]).filter(x=>same(x.ID_Aguila,id)&&x.Km_Dominados!==""&&x.Km_Dominados!=null).map(x=>({...x,Fecha:nd(x.Fecha),Km_Dominados:N(x.Km_Dominados)})).sort((a,b)=>a.Fecha<b.Fecha?-1:a.Fecha>b.Fecha?1:0);
-// tarjeta completa: o = {d, f, n, pts, h}; pid = prefijo único para los ids del DOM
+// perfil en SVG: gris = por dominar, verde = dominado. Sin puntos: solo la línea del terreno.
+function cafSvg(meta,dom,pid){const W=1000,H=150,n=Math.round(meta/.25),xs=[...Array(n+1)].map((_,i)=>Math.min(i*.25,meta));
+ const al=xs.map(cafAlt),lo=Math.min(...al)-12,hi=Math.max(...al)+8,X=k=>k/meta*W,Y=a=>H-(a-lo)/(hi-lo)*H;
+ const ln=xs.map((k,i)=>`${i?"L":"M"}${X(k).toFixed(1)},${Y(al[i]).toFixed(1)}`).join(""),ar=ln+`L${W},${H}L0,${H}Z`,cw=X(dom).toFixed(1);
+ return `<svg class="cf-sv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" onclick="cafTap(event,'${pid}',${meta})" role="img" aria-label="Perfil altimétrico: ${kmF(dom)} de ${kmF(meta)} km dominados">
+ <defs><clipPath id="${pid}c"><rect width="${cw}" height="${H}"/></clipPath></defs>
+ <path d="${ar}" class="cf-a0"/><path d="${ln}" class="cf-l0"/>
+ <g clip-path="url(#${pid}c)"><path d="${ar}" class="cf-a1"/><path d="${ln}" class="cf-l1"/></g>
+ <line id="${pid}cur" class="cf-cur" x1="-9" x2="-9" y1="0" y2="${H}"/></svg>`}
 function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h.length-1],prev=o.h[o.h.length-2],dom=last?Math.min(last.Km_Dominados,meta):0;
- const days=o.f?diff(o.f,t):null,pts=o.pts,hit=[...pts].reverse().find(p=>p.k<=dom),nx=pts.find(p=>p.k>dom);
- const head=days==null?`<div class="num">—</div><b>Fecha del ${esc(o.n)} por confirmar</b>`:`<div class="num">${days===0?"¡Hoy!":days}</div><b>${days===0?"¡Hoy es el "+esc(o.n)+"!":(days===1?"día":"días")+" para el "+esc(o.n)}</b>${o.f?`<div class="muted">${fmtL(o.f)}</div>`:""}`;
- const marks=pts.map((p,i)=>`<button type="button" class="cf-p ${p.k<=dom?"on":""}" style="left:${Math.min(p.k/meta,1)*100}%" onclick="cafPt('${pid}',${i})" aria-label="Km ${kmF(p.k)}: ${esc(p.s)}"><i></i></button>`).join("");
- const lbls=pts.filter(p=>meta-p.k>=2.5).map(p=>`<span style="left:${p.k/meta*100}%">${kmF(p.k)}</span>`).join("")+`<span class="end" style="left:100%">🏁 ${kmF(meta)}</span>`;
- const dTxt=!last?`<span class="muted">El coach aún no ha cargado tus km dominados.</span>`
-  :`<div class="cf-km"><b>${kmF(dom)}</b> de ${kmF(meta)} km dominados</div>`+(prev?`<div class="muted" style="font-size:13px">${last.Km_Dominados-prev.Km_Dominados>=0?"+":""}${kmF(last.Km_Dominados-prev.Km_Dominados)} km desde el ${fmtL(prev.Fecha)}</div>`:"");
- const sTxt=!last?"":dom>=meta?`<div class="row"><span>Tienes dominado</span><b>¡El recorrido completo!</b></div>`
-  :(hit?`<div class="row"><span>Tienes dominado hasta</span><b>${esc(hit.s)} · km ${kmF(hit.k)}</b></div>`:"")+(nx?`<div class="row"><span>Próximo punto</span><b>${esc(nx.s)} · km ${kmF(nx.k)} (faltan ${kmF(nx.k-dom)} km)</b></div>`:"");
- return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${head}
- <div class="cf-bar"><div class="cf-tr"><div class="cf-fl" style="width:${dom/meta*100}%"></div>${marks}</div><div class="cf-lb">${lbls}</div></div>
- ${dTxt}<div class="cf-tip muted" id="${pid}tip">${pts.length?"Toca un punto de la barra para ver el sitio.":"El recorrido aún no está cargado."}</div>${sTxt}
+ const days=o.f?diff(o.f,t):null,hit=[...o.pts].reverse().find(p=>p.k<=dom);
+ const big=last?`<span class="muted">Tienes</span><div class="num">${kmF(dom)} km</div><b>de ${kmF(meta)} km dominados</b>`:`<div class="num">— km</div><span class="muted">El coach aún no ha cargado tus km dominados.</span>`;
+ const when=days==null?"Fecha por confirmar":days===0?`¡Hoy es el ${esc(o.n)}!`:`Faltan ${days} ${days===1?"día":"días"} · ${fmtL(o.f)}`;
+ const lbls=[0,5,10,15,20,25,30,35,40].filter(k=>meta-k>=2.5).map(k=>`<span style="left:${k/meta*100}%">${k}</span>`).join("")+`<span class="end" style="left:100%">🏁 ${kmF(meta)}</span>`;
+ const delta=last&&prev?`<div class="muted" style="font-size:13px">${last.Km_Dominados-prev.Km_Dominados>=0?"+":"−"}${kmF(Math.abs(last.Km_Dominados-prev.Km_Dominados))} km desde el ${fmtL(prev.Fecha)}</div>`:"";
+ const sTxt=!last?"":dom>=meta?`<div class="row"><span>Tienes dominado</span><b>¡El recorrido completo!</b></div>`:hit?`<div class="row"><span>Tienes dominado hasta</span><b>${esc(hit.s)} · km ${kmF(hit.k)}</b></div>`:"";
+ return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${big}${delta}<div class="cf-when">⏱️ ${when}</div>
+ <div class="cf-bar">${cafSvg(meta,dom,pid)}<div class="cf-lb">${lbls}</div></div>
+ <div class="cf-tip muted" id="${pid}tip">Toca el perfil para ver el km y la altitud.</div>${sTxt}
  ${last&&String(last.Nota??"").trim()?`<div class="row"><span>🦅 Coach</span><b>${esc(last.Nota)}</b></div>`:""}
  ${last?`<div class="muted" style="font-size:12px;margin-top:6px">Actualizado por el coach el ${fmtL(last.Fecha)}</div>`:""}${extra}</div>`}
 const CAFP={};
-function cafPt(pid,i){const p=CAFP[pid][i],el=document.getElementById(pid+"tip");if(el)el.innerHTML=`<b>Km ${kmF(p.k)}</b> · ${esc(p.s)}`;
- document.querySelectorAll(`#${pid}w .cf-p`).forEach((b,j)=>b.classList.toggle("sel",j===i))}
-// envoltorio: registra los puntos para el tap y pone un id al contenedor
-const cafBox=(o,pid,extra)=>{CAFP[pid]=o.pts;return `<div id="${pid}w">${cafCard(o,pid,extra)}</div>`};
+function cafTap(e,pid,meta){const sv=e.currentTarget,r=sv.getBoundingClientRect(),k=Math.max(0,Math.min(meta,(e.clientX-r.left)/r.width*meta));
+ const c=document.getElementById(pid+"cur"),x=(k/meta*1000).toFixed(1);c.setAttribute("x1",x);c.setAttribute("x2",x);
+ const p=[...(CAFP[pid]||[])].reverse().find(q=>q.k<=k);
+ document.getElementById(pid+"tip").innerHTML=`<b>Km ${kmF(k)}</b> · ${Math.round(cafAlt(k))} msnm aprox.${p?" · después de "+esc(p.s):""}`}
+// envoltorio: registra los sitios para el tap
+const cafBox=(o,pid,extra)=>{CAFP[pid]=o.pts;return cafCard(o,pid,extra)};
 
 let me=null,W=[],R=[],TM=[],RP=[],CAF=null,tab="home",calM=null,sel=null;
 // Caché local: se muestra lo último guardado al instante y se actualiza por detrás.
