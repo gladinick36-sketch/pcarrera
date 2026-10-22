@@ -82,6 +82,14 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .cf-lb{position:relative;height:18px;margin-top:6px;font-size:12px;color:var(--mu)}
 .cf-lb span{position:absolute;transform:translateX(-50%);white-space:nowrap}.cf-lb span:first-child{transform:none}.cf-lb span.end{transform:translateX(-100%);color:var(--tx);font-weight:600}
 .cf-tip{font-size:14px;margin:6px 0 4px;min-height:20px}
+.dns{margin-bottom:14px}.dn{text-align:center;margin:0}.dn svg{width:100%;max-width:130px;display:block;margin:0 auto 6px}
+.dn0{fill:none;stroke:var(--c2);stroke-width:11}.dn1{fill:none;stroke-width:11;stroke-linecap:round;transform:rotate(-90deg);transform-origin:50px 50px}
+.dn text{fill:var(--tx);font:800 26px 'Barlow Condensed',sans-serif;text-anchor:middle;dominant-baseline:central}
+.dn b{display:block;font:800 17px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em}.dn .muted{font-size:13px}
+.rt3{display:grid;grid-template-columns:1fr 1.5fr 1fr;align-items:center;gap:6px}.rt3>.tag,.rt3>.chips,.rt3>.muted{grid-column:1/-1}.rt3>.chips{margin:2px 0 6px}.rt3>.muted{text-align:center;font-size:13px;margin-top:6px}
+.dn.sm svg{max-width:84px}.dn.sm b{font-size:14px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g3 input{margin-top:2px}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
 .dots{display:flex;gap:2px;justify-content:center;margin-top:3px}
@@ -166,8 +174,29 @@ if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriami
 if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d};
 const detHTML=w=>det(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
 const hasDom=w=>w.Eval_Dominio_Ritmo_pct!==""&&w.Eval_Dominio_Ritmo_pct!=null;
-const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
+const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",hasRt(w)?rtTxt(w):String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
 const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
+
+/* ---------- donas: cumplimiento y ritmo ---------- */
+// cumplimiento entre dos fechas: igual que el semáforo (solo días vencidos, sin descansos)
+function cmp(ws,f,t){const h=today();ws=ws.filter(w=>w.Fecha>=f&&w.Fecha<=t&&!isRest(w));const pa=ws.filter(w=>w.Fecha<h),n=pa.length;
+ return{n,all:ws.length,dn:pa.filter(w=>pct(w)>0).length,p:n?pa.reduce((s,w)=>s+pct(w),0)/n:null}}
+const ring=(p,col,lbl)=>{const C=2*Math.PI*40,v=p==null?0:Math.max(0,Math.min(100,p)),tx=p==null?"—":Math.round(p)+"%";
+ return `<svg viewBox="0 0 100 100" role="img" aria-label="${esc(lbl)}: ${tx}"><circle cx="50" cy="50" r="40" class="dn0"/>${v?`<circle cx="50" cy="50" r="40" class="dn1" style="stroke:${col};stroke-dasharray:${(C*v/100).toFixed(1)} ${C.toFixed(1)}"/>`:""}<text x="50" y="50">${tx}</text></svg>`};
+function donut(o,lbl){const col=o.p==null?"var(--ln)":o.p>=80?"var(--gr)":o.p>=50?"var(--ye)":"var(--rd)";
+ const sub=o.n?`${o.dn}/${o.n} cumplidos`+(o.all>o.n?` · ${o.all-o.n} por venir`:""):o.all?`${o.all} programados, sin vencer`:"Sin entrenamientos";
+ return `<div class="card dn">${ring(o.p,col,lbl)}<b>${esc(lbl)}</b><span class="muted">${sub}</span></div>`}
+// ritmo que evalúa el coach: % del entrenamiento más lento / en el ritmo asignado / más rápido (suman 100)
+const RT=[["Eval_Ritmo_Lento_pct","Más lento","var(--ye)"],["Eval_Ritmo_Asignado_pct","En ritmo","var(--gr)"],["Eval_Ritmo_Rapido_pct","Más rápido","var(--rd)"]];
+const hasRt=w=>RT.some(([k])=>w[k]!==""&&w[k]!=null);
+const rtTxt=w=>`${N(w.Eval_Ritmo_Asignado_pct)}% en ritmo · ${N(w.Eval_Ritmo_Lento_pct)}% más lento · ${N(w.Eval_Ritmo_Rapido_pct)}% más rápido`;
+// período: suma cada % de todos los entrenamientos evaluados y lo lleva a % del total
+function rtAgg(ws,f,t){ws=ws.filter(w=>w.Fecha>=f&&w.Fecha<=t&&!isRest(w)&&hasRt(w));const s=RT.map(([k])=>ws.reduce((a,w)=>a+N(w[k]),0)),T=s[0]+s[1]+s[2];
+ return{n:ws.length,v:s.map(x=>T?x/T*100:null)}}
+let rtP="m"; // período de las donas de ritmo: m = mes, w = semana
+function rtSec(ws,m,w){const[f,t]=rtP==="m"?m:w,o=rtAgg(ws,f,t);
+ const ch=[["m",m[2]],["w",w[2]]].map(([k,x])=>`<button type="button" class="chip ${rtP===k?"on":""}" onclick="rtP='${k}';render()">${esc(x[0].toUpperCase()+x.slice(1))}</button>`).join("");
+ return `<div class="card rt3"><div class="tag">Ritmo</div><div class="chips">${ch}</div>${RT.map(([,x,c],i)=>`<div class="dn${i===1?"":" sm"}">${ring(o.v[i],c,x)}<b>${x}</b></div>`).join("")}<span class="muted">${o.n?o.n+(o.n===1?" entrenamiento evaluado":" entrenamientos evaluados"):"Sin ritmo evaluado en este período"}</span></div>`}
 
 /* ---------- DLC Maratón CAF ----------
  Config: CAF_FECHA (YYYY-MM-DD), CAF_NOMBRE · Aguilas.CAF_Distancia (21 | 42 | vacío)
@@ -197,10 +226,11 @@ function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h
  const days=o.f?diff(o.f,t):null,hit=[...o.pts].reverse().find(p=>p.k<=dom);
  const big=last?`<span class="muted">Tienes</span><div class="num">${kmF(dom)} km</div><b>de ${kmF(meta)} km dominados</b>`:`<div class="num">— km</div><span class="muted">El coach aún no ha cargado tus km dominados.</span>`;
  const when=days==null?"Fecha por confirmar":days===0?`¡Hoy es el ${esc(o.n)}!`:`Faltan ${days} ${days===1?"día":"días"} · ${fmtL(o.f)}`;
+ const sw=Math.floor(N(days)/7),sem=o.sem&&days>0?`<div class="cf-when" style="margin-left:6px">📅 ${sw?`Faltan ${sw} ${sw===1?"semana":"semanas"}`:"Menos de 1 semana"}</div>`:""; // solo el coach (o.sem)
  const lbls=[0,5,10,15,20,25,30,35,40].filter(k=>meta-k>=2.5).map(k=>`<span style="left:${k/meta*100}%">${k}</span>`).join("")+`<span class="end" style="left:100%">🏁 ${kmF(meta)}</span>`;
  const delta=last&&prev?`<div class="muted" style="font-size:13px">${last.Km_Dominados-prev.Km_Dominados>=0?"+":"−"}${kmF(Math.abs(last.Km_Dominados-prev.Km_Dominados))} km desde el ${fmtL(prev.Fecha)}</div>`:"";
  const sTxt=!last?"":dom>=meta?`<div class="row"><span>Tienes dominado</span><b>¡El recorrido completo!</b></div>`:hit?`<div class="row"><span>Tienes dominado hasta</span><b>${esc(hit.s)} · km ${kmF(hit.k)}</b></div>`:"";
- return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${big}${delta}<div class="cf-when">⏱️ ${when}</div>
+ return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${big}${delta}<div class="cf-when">⏱️ ${when}</div>${sem}
  <div class="cf-bar">${cafSvg(meta,dom,pid)}<div class="cf-lb">${lbls}</div></div>
  <div class="cf-tip muted" id="${pid}tip">Toca el perfil para ver el km y la altitud.</div>${sTxt}
  ${last&&String(last.Nota??"").trim()?`<div class="row"><span>🦅 Coach</span><b>${esc(last.Nota)}</b></div>`:""}
@@ -275,7 +305,7 @@ function setP(n){$("#pp").value=n;$("#pv").textContent=n+"%"}
 function savePct(id){const p=+$("#pp").value;closeM();setEstado(id,"SI",p)}
 function go(d){tab="cal";sel=d;calM=d.slice(0,7);render();scrollTo(0,0)}
 function home(){
- const t=today(),tw=W.filter(w=>w.Fecha===t),mon=monday(t),we=addDays(mon,6);
+ const t=today(),tw=W.filter(w=>w.Fecha===t),mon=monday(t),we=addDays(mon,6),mes=t.slice(0,7),ml=MES[+mes.slice(5)-1];
  const strip=[0,1,2,3,4,5,6].map(i=>{const d=addDays(mon,i),real=W.filter(w=>w.Fecha===d&&!isRest(w));
   const st=!real.length?"rest":real.every(isDone)?"done":d<t?"miss":"pend";
   return `<div class="dy ${st} ${d===t?"now":""}" onclick="go('${d}')"><small>${DIAS[i].slice(0,3)}</small><b>${+d.slice(8)}</b><i>${{done:"✓",rest:"·",miss:"✕",pend:"●"}[st]}</i></div>`}).join("");
@@ -285,6 +315,8 @@ function home(){
  const days=nx?diff(nx.Fecha,t):0;
  return `<h2>Hoy · ${fmtL(t)}</h2>`+(tw.length?tw.map(w=>wCard(w,1)).join(""):`<div class="card wk"><div class="tag">Descanso</div><div class="num">Hoy toca recuperar</div><span class="muted">Estírate, hidrátate y come bien, águila.</span></div>`)
  +`<h2>Tu semana</h2><div class="card"><div class="strip">${strip}</div></div>`+cafHome()
+ +`<h2>Tu cumplimiento</h2><div class="g2 dns">${donut(cmp(W,mes+"-01",mes+"-31"),ml)}${donut(cmp(W,mon,we),"Esta semana")}</div>`
+ +rtSec(W,[mes+"-01",mes+"-31",ml],[mon,we,"Esta semana"])
  +`<div class="stats"><div class="card"><div class="num">${k.toFixed(1)}</div><span class="muted">km esta semana</span></div><div class="card"><div class="num">+${Math.round(ds)}</div><span class="muted">m de desnivel</span></div></div>`
  +(nx?`<div class="card"><div class="tag">Próxima carrera</div><div class="num">${days===0?"¡Hoy!":days}</div><b>${days===0?"":(days===1?"día":"días")+" para "}${esc(nx.Nombre_Carrera)}</b><div class="muted">${fmtL(nx.Fecha)} · ${N(nx.Distancia_km)} km · ${esc(nx.Sitio)}</div></div>`:`<div class="card"><div class="tag">Próxima carrera</div><span class="muted">Aún no tienes carreras aprobadas. Agrégala en la pestaña Carreras.</span></div>`)}
 function mv(n){const[y,m]=calM.split("-").map(Number),d=new Date(y,m-1+n,1);calM=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;sel=null;render()}
