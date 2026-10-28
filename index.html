@@ -90,6 +90,10 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .dn.sm svg{max-width:84px}.dn.sm b{font-size:14px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g3 input{margin-top:2px}
+/* mesociclos y microciclos en el calendario: líneas delgadas */
+.cy{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:2px 12px;margin:-1px 0 2px;padding:2px 8px;border-left:2px solid var(--ye);background:var(--c2);border-radius:0 6px 6px 0;font:700 11px/1.35 'Barlow Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);text-align:left}
+.cy.me{display:flex;justify-content:space-between;align-items:center;margin:10px 0 0;padding:3px 10px;border-left-color:var(--rd);color:var(--tx);font-size:12px}
+.cy.me small{color:var(--mu);font-weight:600}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
 .dots{display:flex;gap:2px;justify-content:center;margin-top:3px}
@@ -103,8 +107,9 @@ const MES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","se
 const RUTAS=["Rectorado","Vuelta Larga","Pista","Pista Montañera","Cortafuegos","Ruta CAF","Bombillo","Infinito","La Julia","Sabas Nieves"];
 const DIST_DEF=[["200m","200 m"],["300m","300 m"],["400m","400 m"],["500m","500 m"],["1K","1 km"],["2K","2 km"],["2Kd","2 km con desnivel"],["3K","3 km"],["5K","5 km"],["5000p","5 000 m (pista)"],["5Kd","5 km con desnivel"],["10K","10 km"],["10000p","10 000 m (pista)"],["MM","Media maratón"],["MA","Maratón"]];
 let DISTS=DIST_DEF.slice();
-async function loadDists(){try{const r=await get("Distancias");const l=r.filter(x=>x.ID&&x.Nombre).map(x=>[String(x.ID).trim(),String(x.Nombre).trim(),N(x.Orden)]);
- if(l.length){l.sort((a,b)=>a[2]-b[2]);DISTS=l.map(x=>[x[0],x[1]])}}catch(e){}}
+async function loadDists(){try{setDists(await get("Distancias"))}catch(e){}}
+function setDists(r){if(!Array.isArray(r))return;const l=r.filter(x=>x.ID&&x.Nombre).map(x=>[String(x.ID).trim(),String(x.Nombre).trim(),N(x.Orden)]);
+ if(l.length){l.sort((a,b)=>a[2]-b[2]);DISTS=l.map(x=>[x[0],x[1]])}}
 const dLbl=k=>(DISTS.find(d=>d[0]===k)||["","?"])[1];
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -126,6 +131,8 @@ const N=v=>v===""||v==null||isNaN(v)?0:+v;
 const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
 const same=(a,b)=>{a=String(a).trim();b=String(b).trim();return a===b||(a!==""&&!isNaN(a)&&!isNaN(b)&&Number(a)===Number(b))};
 async function get(sheet){const r=await fetch(API+"?sheet="+sheet);return r.json()}
+// ?boot=ID (o * para el coach): todo en una llamada. null si falla o si el Apps Script publicado todavía no la tiene.
+async function getBoot(id){try{const r=await fetch(API+"?boot="+encodeURIComponent(id)),j=await r.json();return j&&j.ok?j:null}catch(e){return null}}
 async function post(o){const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(o)});return r.json()}
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
 function modal(html){const m=document.createElement("div");m.className="ov";m.innerHTML=`<div class="md">${html}</div>`;m.onclick=e=>{if(e.target===m)m.remove()};document.body.appendChild(m);return m}
@@ -204,6 +211,8 @@ function rtSec(ws,m,w){const[f,t]=rtP==="m"?m:w,o=rtAgg(ws,f,t);
 const getS=s=>get(s).then(r=>Array.isArray(r)?r:null).catch(()=>null); // null = falló o la pestaña no existe todavía
 const cafD=v=>{const n=Math.round(N(v));return n===21||n===42?n:0};
 const CAF_META={21:21.1,42:42.2};
+// tiempo de carrera que sale de correr toda la distancia al ritmo objetivo (seg/km): 42,2 km a 4:40 = 3:16:56
+const cafT=(d,rt)=>N(rt)?rtime(Math.round(CAF_META[d]*N(rt))):"";
 const kmF=v=>String(Math.round(N(v)*10)/10).replace(".",","); // solo para mostrar (coma decimal)
 // Perfil altimétrico del 42K, msnm cada 0,25 km (km 0 a 42). Digitalizado de la imagen oficial: aproximado (± 5 m).
 // El 21K usa la primera mitad del mismo perfil.
@@ -224,7 +233,8 @@ function cafSvg(meta,dom,pid){const W=1000,H=150,n=Math.round(meta/.25),xs=[...A
  <line id="${pid}cur" class="cf-cur" x1="-9" x2="-9" y1="0" y2="${H}"/></svg>`}
 function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h.length-1],prev=o.h[o.h.length-2],dom=last?Math.min(last.Km_Dominados,meta):0;
  const days=o.f?diff(o.f,t):null,hit=[...o.pts].reverse().find(p=>p.k<=dom);
- const big=last?`<span class="muted">Tienes</span><div class="num">${kmF(dom)} km</div><b>de ${kmF(meta)} km dominados</b>`:`<div class="num">— km</div><span class="muted">El coach aún no ha cargado tus km dominados.</span>`;
+ const rto=last&&N(last.Ritmo_Objetivo)?` a ${pace(last.Ritmo_Objetivo)} min/km`:"";
+ const big=last?`<span class="muted">Tienes</span><div class="num">${kmF(dom)} km</div><b>de ${kmF(meta)} km dominados${rto}</b>`:`<div class="num">— km</div><span class="muted">El coach aún no ha cargado tus km dominados.</span>`;
  const when=days==null?"Fecha por confirmar":days===0?`¡Hoy es el ${esc(o.n)}!`:`Faltan ${days} ${days===1?"día":"días"} · ${fmtL(o.f)}`;
  const sw=Math.floor(N(days)/7),sem=o.sem&&days>0?`<div class="cf-when" style="margin-left:6px">📅 ${sw?`Faltan ${sw} ${sw===1?"semana":"semanas"}`:"Menos de 1 semana"}</div>`:""; // solo el coach (o.sem)
  const lbls=[0,5,10,15,20,25,30,35,40].filter(k=>meta-k>=2.5).map(k=>`<span style="left:${k/meta*100}%">${k}</span>`).join("")+`<span class="end" style="left:100%">🏁 ${kmF(meta)}</span>`;
@@ -233,6 +243,7 @@ function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h
  return `<div class="card cf"><div class="tag">🏁 ${esc(o.n)} · ${o.d}K</div>${big}${delta}<div class="cf-when">⏱️ ${when}</div>${sem}
  <div class="cf-bar">${cafSvg(meta,dom,pid)}<div class="cf-lb">${lbls}</div></div>
  <div class="cf-tip muted" id="${pid}tip">Toca el perfil para ver el km y la altitud.</div>${sTxt}
+ ${last&&N(last.Ritmo_Objetivo)?`<div class="row"><span>⏱️ Tiempo objetivo</span><b>${cafT(o.d,last.Ritmo_Objetivo)} <span class="muted" style="font-weight:400">· ${kmF(meta)} km a ${pace(last.Ritmo_Objetivo)} min/km</span></b></div>`:""}
  ${last&&String(last.Nota??"").trim()?`<div class="row"><span>🦅 Coach</span><b>${esc(last.Nota)}</b></div>`:""}
  ${last?`<div class="muted" style="font-size:12px;margin-top:6px">Actualizado por el coach el ${fmtL(last.Fecha)}</div>`:""}${extra}</div>`}
 const CAFP={};
@@ -240,17 +251,36 @@ function cafTap(e,pid,meta){const sv=e.currentTarget,r=sv.getBoundingClientRect(
  const c=document.getElementById(pid+"cur"),x=(k/meta*1000).toFixed(1);c.setAttribute("x1",x);c.setAttribute("x2",x);
  const p=[...(CAFP[pid]||[])].reverse().find(q=>q.k<=k);
  document.getElementById(pid+"tip").innerHTML=`<b>Km ${kmF(k)}</b> · ${Math.round(cafAlt(k))} msnm aprox.${p?" · después de "+esc(p.s):""}`}
+// km dominados = km seguidos que el águila puede correr HOY a su ritmo objetivo de carrera (CAF_Dominio.Ritmo_Objetivo, seg/km)
 // envoltorio: registra los sitios para el tap
 const cafBox=(o,pid,extra)=>{CAFP[pid]=o.pts;return cafCard(o,pid,extra)};
 
-let me=null,W=[],R=[],TM=[],RP=[],CAF=null,tab="home",calM=null,sel=null;
+/* ---------- Mesociclos y microciclos ----------
+ Ciclos: ID, ID_Aguila, Tipo (Mesociclo | Microciclo), Nombre, Inicio, Fin (lo escribe el coach; ID_Aguila = TODAS aplica a todo el club)
+ En el calendario: el microciclo va en una línea delgada debajo de su semana y el mesociclo debajo del mes. */
+const TODAS="TODAS";
+const cyAll=x=>String(x.ID_Aguila??"").trim().toUpperCase()===TODAS;
+const cyOf=(cs,id)=>(cs||[]).filter(x=>String(x.Nombre??"").trim()&&(cyAll(x)||same(x.ID_Aguila,id))).map(x=>({...x,Tipo:/^mi/i.test(x.Tipo)?"Microciclo":"Mesociclo",Inicio:nd(x.Inicio),Fin:nd(x.Fin)||nd(x.Inicio)})).filter(x=>x.Inicio).sort((a,b)=>a.Inicio<b.Inicio?-1:a.Inicio>b.Inicio?1:0);
+const cyIn=(cs,t,f,to)=>cs.filter(x=>x.Tipo===t&&x.Inicio<=to&&x.Fin>=f);
+const cyRng=x=>`${+x.Inicio.slice(8)} ${MES[+x.Inicio.slice(5,7)-1].slice(0,3)} – ${+x.Fin.slice(8)} ${MES[+x.Fin.slice(5,7)-1].slice(0,3)}`;
+const cyTap=(fn,x)=>fn?` onclick="${fn}('${esc(x.ID)}')" style="cursor:pointer"`:"";
+// fila que ocupa las 7 columnas del calendario, debajo de la semana que empieza en `mon`
+const cyMicro=(cs,mon,fn)=>{const l=cyIn(cs,"Microciclo",mon,addDays(mon,6));return l.length?`<div class="cy">${l.map(x=>`<span${cyTap(fn,x)}>Microciclo ${esc(x.Nombre)}</span>`).join("")}</div>`:""};
+const cyMeso=(cs,f,t,fn)=>cyIn(cs,"Mesociclo",f,t).map(x=>`<div class="cy me"${cyTap(fn,x)}><span>Mesociclo ${esc(x.Nombre)}</span><small>${cyRng(x)}</small></div>`).join("");
+// arma las celdas del mes con la línea de microciclo al cierre de cada semana (domingo o último día)
+function calCells(y,m,cs,cell,fn){const off=(new Date(y,m-1,1).getDay()+6)%7,dim=new Date(y,m,0).getDate();let c="";
+ for(let i=0;i<off;i++)c+="<div></div>";
+ for(let d=1;d<=dim;d++){const ds=`${y}-${pad(m)}-${pad(d)}`;c+=cell(ds,d);if((off+d)%7===0||d===dim)c+=cyMicro(cs,monday(ds),fn)}
+ return c}
+
+let me=null,W=[],R=[],TM=[],RP=[],CAF=null,CY=[],tab="home",calM=null,sel=null;
 // Caché local: se muestra lo último guardado al instante y se actualiza por detrás.
 // sync: "" al día · "upd" actualizando · "err" sin conexión. rev sube con cada cambio local para no pisarlo con datos viejos.
 let loaded=0,sync="",rev=0;
 const app=$("#app");
 const views={home,cal,races,tiempos};
 const CK=()=>"pc_cache_"+me.ID;
-function saveC(){try{localStorage.setItem(CK(),JSON.stringify({W,R,TM,RP,CAF,D:DISTS}))}catch(e){}}
+function saveC(){try{localStorage.setItem(CK(),JSON.stringify({W,R,TM,RP,CAF,CY,D:DISTS}))}catch(e){}}
 const syncTxt=()=>({upd:" · actualizando…",err:" · sin conexión, datos guardados"}[sync]||"");
 
 function init(){try{const s=JSON.parse(localStorage.getItem("pc_a"));if(s&&s.ID){me=s;return load()}}catch(e){}showLogin()}
@@ -261,12 +291,15 @@ async function showLogin(){
  catch(e){app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar con el servidor. <button class="btn pri" onclick="showLogin()">Reintentar</button></div></main>'}}
 function doLogin(){const a=_A.find(x=>String(x.ID)===$("#ln").value);if(!a||!same(a.PIN,$("#lp").value))return toast("PIN incorrecto");
  me={ID:String(a.ID),Nombre:a.Nombre};try{localStorage.setItem("pc_a",JSON.stringify(me))}catch(e){}load()}
-function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];CAF=null;loaded=0;sync="";tab="home";showLogin()}
+function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];CAF=null;CY=[];loaded=0;sync="";tab="home";showLogin()}
 async function load(){
- if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);CAF=c.CAF||null;if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
+ if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);CAF=c.CAF||null;CY=c.CY||[];if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
  if(loaded){sync="upd";render()}else app.innerHTML=hdr("Águilas")+'<main class="muted">Cargando tu semana…</main>';
- const r0=rev,cp=loadCAF(); // el DLC CAF va aparte: si tarda o falla no frena la semana
- try{const[,w,r,tm,p]=await Promise.all([loadDists(),get("Entrenamientos"),get("Carreras"),get("Tiempos"),get("RecordsPersonales")]);
+ const r0=rev,b=await getBoot(me.ID);let cp=null;
+ try{let w,r,tm,p;
+ if(b){setDists(b.Distancias);({Entrenamientos:w,Carreras:r,Tiempos:tm,RecordsPersonales:p}=b);setCAF(b.Aguilas,b.Config,b.CAF_Recorrido,b.CAF_Dominio);if(b.Ciclos)CY=cyOf(b.Ciclos,me.ID)}
+ else{cp=loadX(); // respaldo (Apps Script sin ?boot): una llamada por pestaña; CAF y ciclos van aparte para no frenar la semana
+  [,w,r,tm,p]=await Promise.all([loadDists(),get("Entrenamientos"),get("Carreras"),get("Tiempos"),get("RecordsPersonales")])}
  sync="";
  if(rev!==r0)return render(); // hubo un cambio local mientras llegaban los datos: no se pisa
  W=w.filter(x=>same(x.ID_Aguila,me.ID)).map(x=>({...x,Fecha:nd(x.Fecha)}));
@@ -275,11 +308,12 @@ async function load(){
  RP=p.filter(x=>same(x.ID_Aguila,me.ID));loaded=1;saveC();
  const keep=[...app.querySelectorAll("input[id],select[id]")].map(e=>[e.id,e.value]); // no borrar lo que el águila esté escribiendo
  render();keep.forEach(([i,v])=>{const e=document.getElementById(i);if(e)e.value=v});
- if(await cp){saveC();if(tab==="home")render()}}
+ if(await cp){saveC();if(tab!=="races")render()}}
  catch(e){if(loaded){sync="err";render()}else app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar. <button class="btn pri" onclick="load()">Reintentar</button></div></main>'}}
 // Maratón CAF: necesita Aguilas (CAF_Distancia), Config (fecha) y las dos pestañas CAF. Si Aguilas o Config fallan se queda lo de caché.
-async function loadCAF(){const[a,c,rc,dm]=await Promise.all([getS("Aguilas"),getS("Config"),getS("CAF_Recorrido"),getS("CAF_Dominio")]);
- if(!a||!c||!me)return 0;const yo=a.find(x=>same(x.ID,me.ID))||{},d=cafD(yo.CAF_Distancia),cf=cafCfg(c),o=CAF||{};
+async function loadX(){const[a,c,rc,dm,cy]=await Promise.all([getS("Aguilas"),getS("Config"),getS("CAF_Recorrido"),getS("CAF_Dominio"),getS("Ciclos")]);
+ if(cy&&me)CY=cyOf(cy,me.ID);return setCAF(a,c,rc,dm)||!!cy}
+function setCAF(a,c,rc,dm){if(!a||!c||!me)return 0;const yo=a.find(x=>same(x.ID,me.ID))||{},d=cafD(yo.CAF_Distancia),cf=cafCfg(c),o=CAF||{};
  CAF={d,f:cf.f,n:cf.n,pts:rc?cafPts(rc,d):(o.d===d&&o.pts)||[],h:dm?cafHist(dm,me.ID):(o.h||[])};return 1}
 function cafHome(){if(!CAF||!CAF.d||(CAF.f&&CAF.f<today()))return "";return cafBox(CAF,"ca")}
 function render(){
@@ -320,13 +354,12 @@ function home(){
  +`<div class="stats"><div class="card"><div class="num">${k.toFixed(1)}</div><span class="muted">km esta semana</span></div><div class="card"><div class="num">+${Math.round(ds)}</div><span class="muted">m de desnivel</span></div></div>`
  +(nx?`<div class="card"><div class="tag">Próxima carrera</div><div class="num">${days===0?"¡Hoy!":days}</div><b>${days===0?"":(days===1?"día":"días")+" para "}${esc(nx.Nombre_Carrera)}</b><div class="muted">${fmtL(nx.Fecha)} · ${N(nx.Distancia_km)} km · ${esc(nx.Sitio)}</div></div>`:`<div class="card"><div class="tag">Próxima carrera</div><span class="muted">Aún no tienes carreras aprobadas. Agrégala en la pestaña Carreras.</span></div>`)}
 function mv(n){const[y,m]=calM.split("-").map(Number),d=new Date(y,m-1+n,1);calM=`${d.getFullYear()}-${pad(d.getMonth()+1)}`;sel=null;render()}
-function cal(){calM=calM||today().slice(0,7);const[y,m]=calM.split("-").map(Number),off=(new Date(y,m-1,1).getDay()+6)%7,dim=new Date(y,m,0).getDate();
+function cal(){calM=calM||today().slice(0,7);const[y,m]=calM.split("-").map(Number);
  const RA=R.filter(r=>r.Estado==="Aprobada");
- let c="";for(let i=0;i<off;i++)c+="<div></div>";
- for(let d=1;d<=dim;d++){const ds=`${y}-${pad(m)}-${pad(d)}`,ws=W.filter(w=>w.Fecha===ds),ra=RA.some(r=>r.Fecha===ds),real=ws.filter(w=>!isRest(w));
-  c+=`<div class="cd ${ds===today()?"now":""} ${ds===sel?"sel":""}" onclick="sel='${ds}';render()">${d}<div class="dots">${real.length?`<i class="${real.every(isDone)?"g":"r"}"></i>`:""}${ra?'<i class="b"></i>':""}</div></div>`}
+ const c=calCells(y,m,CY,(ds,d)=>{const ws=W.filter(w=>w.Fecha===ds),ra=RA.some(r=>r.Fecha===ds),real=ws.filter(w=>!isRest(w));
+  return `<div class="cd ${ds===today()?"now":""} ${ds===sel?"sel":""}" onclick="sel='${ds}';render()">${d}<div class="dots">${real.length?`<i class="${real.every(isDone)?"g":"r"}"></i>`:""}${ra?'<i class="b"></i>':""}</div></div>`});
  const sw=sel?W.filter(w=>w.Fecha===sel):[],sr=sel?RA.find(r=>r.Fecha===sel):null;
- return `<div class="mn"><button onclick="mv(-1)">‹</button><h2 style="margin:0">${MES[m-1]} ${y}</h2><button onclick="mv(1)">›</button></div><div class="card"><div class="cal">${DIAS.map(d=>`<div class="h">${d[0]}</div>`).join("")}${c}</div><div class="muted" style="margin-top:10px;font-size:13px">🟢 hecho · 🟡 pendiente · 🔵 carrera</div></div>`
+ return `<div class="mn"><button onclick="mv(-1)">‹</button><h2 style="margin:0">${MES[m-1]} ${y}</h2><button onclick="mv(1)">›</button></div><div class="card"><div class="cal">${DIAS.map(d=>`<div class="h">${d[0]}</div>`).join("")}${c}</div>${cyMeso(CY,calM+"-01",calM+"-31")}<div class="muted" style="margin-top:10px;font-size:13px">🟢 hecho · 🟡 pendiente · 🔵 carrera</div></div>`
  +(sel?`<h2>${fmtL(sel)}</h2>`+(sr?`<div class="card wk big"><div class="tag">🏁 Carrera</div><div class="num">${esc(sr.Nombre_Carrera)}</div><div class="row"><span>Distancia</span><b>${N(sr.Distancia_km)} km</b></div><div class="row"><span>Sitio</span><b>${esc(sr.Sitio)}</b></div></div>`:"")+(sw.length?sw.map(w=>wCard(w,0)).join(""):(sr?"":'<div class="card muted">Día de descanso.</div>')):'<div class="muted">Toca un día para ver el entrenamiento.</div>')}
 function races(){
  const l=[...R].sort((a,b)=>a.Fecha<b.Fecha?-1:1).map(r=>{const c={Aprobada:"ok",Pendiente:"w",Rechazada:"no"}[r.Estado]||"w";
