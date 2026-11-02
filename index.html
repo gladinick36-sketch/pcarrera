@@ -95,7 +95,7 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.g3 input{margin-top:2px}
 /* mesociclos y microciclos en el calendario: líneas delgadas */
 .cy{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:2px 12px;margin:-1px 0 2px;padding:2px 8px;border-left:2px solid var(--ye);background:var(--c2);border-radius:0 6px 6px 0;font:700 11px/1.35 'Barlow Condensed','Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.05em;color:var(--mu);text-align:left}
-.cy.me{display:flex;justify-content:space-between;align-items:center;margin:10px 0 0;padding:3px 10px;border-left-color:var(--rd);color:var(--tx);font-size:12px}
+.cy.me{display:flex;justify-content:space-between;align-items:center;margin:-4px 0 12px;padding:3px 10px;border-left-color:var(--rd);color:var(--tx);font-size:12px}
 .cy.me small{color:var(--mu);font-weight:600}
 /* uniforme */
 .uni img,.upop img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;background:var(--c2)}
@@ -288,7 +288,7 @@ const cafBox=(o,pid,extra)=>{CAFP[pid]=o.pts;return cafCard(o,pid,extra)};
 
 /* ---------- Mesociclos y microciclos ----------
  Ciclos: ID, ID_Aguila, Tipo (Mesociclo | Microciclo), Nombre, Inicio, Fin (lo escribe el coach; ID_Aguila = TODAS aplica a todo el club)
- En el calendario: el microciclo va en una línea delgada debajo de su semana y el mesociclo debajo del mes. */
+ En el calendario: el microciclo va en una línea delgada debajo de su semana y el mesociclo justo debajo del nombre del mes. */
 const TODAS="TODAS";
 const cyAll=x=>String(x.ID_Aguila??"").trim().toUpperCase()===TODAS;
 const cyOf=(cs,id)=>(cs||[]).filter(x=>String(x.Nombre??"").trim()&&(cyAll(x)||same(x.ID_Aguila,id))).map(x=>({...x,Tipo:/^mi/i.test(x.Tipo)?"Microciclo":"Mesociclo",Inicio:nd(x.Inicio),Fin:nd(x.Fin)||nd(x.Inicio)})).filter(x=>x.Inicio).sort((a,b)=>a.Inicio<b.Inicio?-1:a.Inicio>b.Inicio?1:0);
@@ -420,7 +420,7 @@ function cal(){calM=calM||today().slice(0,7);const[y,m]=calM.split("-").map(Numb
  const c=calCells(y,m,CY,(ds,d)=>{const ws=W.filter(w=>w.Fecha===ds),ra=RA.some(r=>r.Fecha===ds),real=ws.filter(w=>!isRest(w));
   return `<div class="cd ${ds===today()?"now":""} ${ds===sel?"sel":""}" onclick="sel='${ds}';render()">${d}<div class="dots">${real.length?`<i class="${real.every(isDone)?"g":"r"}"></i>`:""}${ra?'<i class="b"></i>':""}</div></div>`});
  const sw=sel?W.filter(w=>w.Fecha===sel):[],sr=sel?RA.find(r=>r.Fecha===sel):null;
- return `<div class="mn"><button onclick="mv(-1)">‹</button><h2 style="margin:0">${MES[m-1]} ${y}</h2><button onclick="mv(1)">›</button></div><div class="card"><div class="cal">${DIAS.map(d=>`<div class="h">${d[0]}</div>`).join("")}${c}</div>${cyMeso(CY,calM+"-01",calM+"-31")}<div class="muted" style="margin-top:10px;font-size:13px">🟢 hecho · 🟡 pendiente · 🔵 carrera</div></div>`
+ return `<div class="mn"><button onclick="mv(-1)">‹</button><h2 style="margin:0">${MES[m-1]} ${y}</h2><button onclick="mv(1)">›</button></div>${cyMeso(CY,calM+"-01",calM+"-31")}<div class="card"><div class="cal">${DIAS.map(d=>`<div class="h">${d[0]}</div>`).join("")}${c}</div><div class="muted" style="margin-top:10px;font-size:13px">🟢 hecho · 🟡 pendiente · 🔵 carrera</div></div>`
  +(sel?`<h2>${fmtL(sel)}</h2>`+(sr?`<div class="card wk big"><div class="tag">🏁 Carrera</div><div class="num">${esc(sr.Nombre_Carrera)}</div><div class="row"><span>Distancia</span><b>${N(sr.Distancia_km)} km</b></div><div class="row"><span>Sitio</span><b>${esc(sr.Sitio)}</b></div></div>`:"")+(sw.length?sw.map(w=>wCard(w,0)).join(""):(sr?"":'<div class="card muted">Día de descanso.</div>')):'<div class="muted">Toca un día para ver el entrenamiento.</div>')}
 function races(){
  const l=[...R].sort((a,b)=>a.Fecha<b.Fecha?-1:1).map(r=>{const c={Aprobada:"ok",Pendiente:"w",Rechazada:"no"}[r.Estado]||"w";
