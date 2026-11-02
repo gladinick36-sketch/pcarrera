@@ -14,7 +14,8 @@ body{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 h1,h2,h3,.num,.tag,.hd b{font-family:'Barlow Condensed','Arial Narrow',Impact,sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:0;font-weight:800}
 h2{font-size:26px;margin-bottom:12px}
 header.hd{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:#000;position:sticky;top:0;z-index:5}
-.hd img{height:46px}.hd div{flex:1;line-height:1.1}.hd b{font-size:21px;display:block}.hd small{color:var(--mu)}
+.hd img{height:46px}.hd div{flex:1;min-width:0;line-height:1.1}.hd b{font-size:21px;display:block;white-space:nowrap}.hd small{color:var(--mu)}
+@media(max-width:430px){header.hd{gap:8px;padding-left:12px;padding-right:12px}.hd img{height:40px}.hd b{font-size:18px}.hd .btn.s{padding:8px 9px}}
 .flag{height:4px;background:linear-gradient(90deg,var(--ye) 33.33%,var(--bl) 33.33% 66.66%,var(--rd) 66.66%)}
 main{padding:16px;max-width:680px;margin:auto}
 .card{background:var(--c1);border:1px solid var(--ln);border-radius:16px;padding:16px;margin-bottom:14px}
@@ -24,6 +25,7 @@ main{padding:16px;max-width:680px;margin:auto}
 .num{font-size:68px;line-height:1;margin:4px 0 10px}
 .row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--ln)}
 .row span{color:var(--mu)}.row b{text-align:right;font-weight:600}
+.row.tx{display:block}.row.tx span,.row.tx b{display:block}.row.tx b{text-align:left;white-space:pre-line}
 .btn{width:100%;padding:14px;border:0;border-radius:12px;font:700 16px 'Barlow',sans-serif;background:var(--c2);color:var(--tx);margin-top:12px;cursor:pointer}
 .pri{background:var(--rd)}.ghost{background:transparent;border:1px solid var(--gr);color:var(--gr)}
 .btn.s{width:auto;padding:8px 12px;margin:0;font-size:14px}
@@ -76,6 +78,7 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .cf-when{display:inline-block;margin:10px 0 0;padding:5px 12px;border-radius:99px;background:var(--c2);font-weight:600;font-size:14px}
 .cf-bar{margin:16px 0 6px}
 .cf-sv{display:block;width:100%;height:110px;cursor:pointer;touch-action:manipulation}
+.cf-mi{height:36px;cursor:inherit}
 .cf-a0{fill:#2a2a2a}.cf-l0{fill:none;stroke:#5a5a5a;stroke-width:2;vector-effect:non-scaling-stroke}
 .cf-a1{fill:var(--gr);fill-opacity:.28}.cf-l1{fill:none;stroke:var(--gr);stroke-width:2.5;vector-effect:non-scaling-stroke}
 .cf-cur{stroke:var(--tx);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
@@ -102,6 +105,13 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 
 .cd-n{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}.cd-n .num{font-size:52px;margin:0}.cd-n small{color:var(--mu);text-transform:uppercase;font-size:11px}
 .dots{display:flex;gap:2px;justify-content:center;margin-top:3px}
+/* ruleta de dificultad */
+.dfb{position:relative;margin:4px -16px 0}.dfb::after{content:"";position:absolute;top:6px;bottom:6px;left:50%;width:92px;margin-left:-46px;border:2px solid var(--rd);border-radius:18px;pointer-events:none}
+.dfw{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch}.dfw::-webkit-scrollbar{display:none}
+.dfw::before,.dfw::after{content:"";flex:0 0 calc(50% - 46px)}
+.dfi{flex:0 0 92px;height:92px;padding:0;border:0;background:none;scroll-snap-align:center;font-size:36px;line-height:1;opacity:.45;cursor:pointer;transition:transform .12s,opacity .12s}
+.dfi.on{transform:scale(1.5);opacity:1}.dfw.idle .dfi.on{opacity:.45}
+.dfl{text-align:center;font:800 22px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:4px 0 6px}.dfl.idle{color:var(--mu);font:600 14px 'Barlow',sans-serif;text-transform:none;letter-spacing:0}
 .num.alt{font-size:40px}.pq{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 4px}.pq .chip{text-align:center}
 </style></head><body><div id="app"></div>
 <script>
@@ -139,10 +149,21 @@ async function get(sheet){const r=await fetch(API+"?sheet="+sheet);return r.json
 // ?boot=ID (o * para el coach): todo en una llamada. null si falla o si el Apps Script publicado todavía no la tiene.
 async function getBoot(id){try{const r=await fetch(API+"?boot="+encodeURIComponent(id)),j=await r.json();return j&&j.ok?j:null}catch(e){return null}}
 async function post(o){const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(o)});return r.json()}
-function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600)}
+function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600);if(/^(No se pudo|Error)|incorrecto/.test(m))sfx("err");else if(/✓|enviad/i.test(m))sfx("ok")}
+/* ---------- sonidos ----------
+ Sintetizados con Web Audio: no suman archivos ni peso. Se apagan con el botón 🔊 del encabezado (se recuerda en el dispositivo).
+ Cada nota: [frecuencia Hz, inicio s, duración s, volumen, onda] */
+const SFXD={tap:[[880,0,.04,.04,"triangle"]],tick:[[600,0,.05,.09,"triangle"]],ok:[[660,0,.09,.11],[990,.08,.16,.11]],
+ win:[[523,0,.1,.13,"triangle"],[659,.09,.1,.13,"triangle"],[784,.18,.1,.13,"triangle"],[1047,.27,.3,.15,"triangle"]],err:[[233,0,.12,.1],[165,.11,.2,.1]]};
+let AC=null,SFXoff=0;try{SFXoff=localStorage.getItem("pc_sfx")==="0"?1:0}catch(e){}
+function sfx(k,m=1){if(SFXoff)return;try{AC=AC||new(window.AudioContext||window.webkitAudioContext)();if(AC.state==="suspended")AC.resume();
+ SFXD[k].forEach(([f,t,d,v,ty])=>{const o=AC.createOscillator(),g=AC.createGain(),s=AC.currentTime+t;o.type=ty||"sine";o.frequency.value=f*m;
+ g.gain.setValueAtTime(.0001,s);g.gain.exponentialRampToValueAtTime(v,s+.006);g.gain.exponentialRampToValueAtTime(.0001,s+d);o.connect(g);g.connect(AC.destination);o.start(s);o.stop(s+d+.02)})}catch(e){}}
+function sfxT(){SFXoff=SFXoff?0:1;try{localStorage.setItem("pc_sfx",SFXoff?"0":"1")}catch(e){}document.querySelectorAll(".sfb").forEach(b=>b.textContent=SFXoff?"🔇":"🔊");sfx("ok")}
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("button,[onclick]"))sfx("tap")},true);
 function modal(html){const m=document.createElement("div");m.className="ov";m.innerHTML=`<div class="md">${html}</div>`;m.onclick=e=>{if(e.target===m)m.remove()};document.body.appendChild(m);return m}
 const closeM=()=>document.querySelectorAll(".ov").forEach(m=>m.remove());
-const hdr=(sub,right="")=>`<header class="hd"><img src="${LOGO}" alt="Team PCarrera 4x4"><div><b>Team PCarrera 4x4</b><small>${sub}</small></div>${right}</header><div class="flag"></div>`;
+const hdr=(sub,right="")=>`<header class="hd"><img src="${LOGO}" alt="Team PCarrera 4x4"><div><b>Team PCarrera 4x4</b><small>${sub}</small></div><button class="btn s sfb" onclick="sfxT()" aria-label="Sonido">${SFXoff?"🔇":"🔊"}</button>${right}</header><div class="flag"></div>`;
 const ce=(v,u)=>u==="distancia"?N(v)+" km":N(v)+" min";
 const isRest=w=>w.Deporte==="Descanso";
 const isFuerza=w=>w.Deporte==="Fuerza";
@@ -172,19 +193,23 @@ const plKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:isAlt(w)?blk(w)
 // km/desnivel confirmados: el real que cargó el coach; si no, lo planificado × el % que manda (coach > águila)
 const km=w=>N(w.Distancia_Real_km)||plKm(w)*pct(w)/100;
 const dsn=w=>N(w.Desnivel_Real_m)||N(w.Desnivel_m)*pct(w)/100;
+// dificultad que declara el águila al completar: columna Dificultad = 1 a 5
+const DIF=[["😌","Muy suave"],["🙂","Suave"],["😐","Intermedia"],["😣","Dura"],["🥵","Ultra dura"]];
+const difTxt=w=>{const x=DIF[Math.round(N(w.Dificultad))-1];return x?x[0]+" "+x[1]:""};
+const tacMic=(w,d)=>{if(String(w.Tactica??"").trim())d.push(["Táctica",w.Tactica]);if(w.Microciclo)d.push(["Microciclo",w.Microciclo])}; // Microciclo: solo filas viejas
 const det=w=>{const d=[];
 if(isRest(w)){if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d}
-if(isFuerza(w)){if(w.Ruta_Circuito)d.push(["Rutina",w.Ruta_Circuito]);if(w.Microciclo)d.push(["Microciclo",w.Microciclo]);if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d}
+if(isFuerza(w)){if(w.Ruta_Circuito)d.push(["Rutina",w.Ruta_Circuito]);tacMic(w,d);if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);if(w.Observaciones)d.push(["Obs.",w.Observaciones]);if(difTxt(w))d.push(["Dificultad",difTxt(w)]);return d}
 if(w.Ruta_Circuito)d.push(["Ruta",w.Ruta_Circuito]);
 if(w.Ritmo_Min)d.push(["Ritmo",pace(w.Ritmo_Min)+(w.Ritmo_Max?" – "+pace(w.Ritmo_Max):"")+" min/km"]);
 if(N(w.Desnivel_m))d.push(["Desnivel","+"+w.Desnivel_m+" m"]);
 if(isAlt(w)){const{S,SR,b}=bset(w);if(S>1)d.push(["Serie",`se repite ${S} veces · rec. entre series ${recF(SR)} min`]);b.forEach((x,i)=>d.push(["Repetición "+(i+1),bDet(x,S>1&&i===b.length-1)]))}
 else if(sery(w))d.push(["Recuperación",recF(N(w.Series_Recuperacion_seg))+" min"]);
-if(w.Microciclo)d.push(["Microciclo",w.Microciclo]);
+tacMic(w,d);
 if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);
 if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);
-if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d};
-const detHTML=w=>det(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
+if(w.Observaciones)d.push(["Obs.",w.Observaciones]);if(difTxt(w))d.push(["Dificultad",difTxt(w)]);return d};
+const detHTML=w=>det(w).map(([k,v])=>`<div class="row${k==="Táctica"?" tx":""}"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
 const hasDom=w=>w.Eval_Dominio_Ritmo_pct!==""&&w.Eval_Dominio_Ritmo_pct!=null;
 const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",hasRt(w)?rtTxt(w):String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
 const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
@@ -228,14 +253,15 @@ const cafPts=(rc,d)=>(rc||[]).filter(x=>cafD(x.Distancia)===d&&x.Km!==""&&x.Km!=
 // historial de un águila, de la más vieja a la más reciente (sort estable: mismo día = orden de la hoja)
 const cafHist=(dm,id)=>(dm||[]).filter(x=>same(x.ID_Aguila,id)&&x.Km_Dominados!==""&&x.Km_Dominados!=null).map(x=>({...x,Fecha:nd(x.Fecha),Km_Dominados:N(x.Km_Dominados)})).sort((a,b)=>a.Fecha<b.Fecha?-1:a.Fecha>b.Fecha?1:0);
 // perfil en SVG: gris = por dominar, verde = dominado. Sin puntos: solo la línea del terreno.
-function cafSvg(meta,dom,pid){const W=1000,H=150,n=Math.round(meta/.25),xs=[...Array(n+1)].map((_,i)=>Math.min(i*.25,meta));
+// mini = versión simplificada de la lista del coach: sin toque ni cursor
+function cafSvg(meta,dom,pid,mini){const W=1000,H=150,n=Math.round(meta/.25),xs=[...Array(n+1)].map((_,i)=>Math.min(i*.25,meta));
  const al=xs.map(cafAlt),lo=Math.min(...al)-12,hi=Math.max(...al)+8,X=k=>k/meta*W,Y=a=>H-(a-lo)/(hi-lo)*H;
  const ln=xs.map((k,i)=>`${i?"L":"M"}${X(k).toFixed(1)},${Y(al[i]).toFixed(1)}`).join(""),ar=ln+`L${W},${H}L0,${H}Z`,cw=X(dom).toFixed(1);
- return `<svg class="cf-sv" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" onclick="cafTap(event,'${pid}',${meta})" role="img" aria-label="Perfil altimétrico: ${kmF(dom)} de ${kmF(meta)} km dominados">
+ return `<svg class="cf-sv${mini?" cf-mi":""}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"${mini?"":` onclick="cafTap(event,'${pid}',${meta})"`} role="img" aria-label="Perfil altimétrico: ${kmF(dom)} de ${kmF(meta)} km dominados">
  <defs><clipPath id="${pid}c"><rect width="${cw}" height="${H}"/></clipPath></defs>
  <path d="${ar}" class="cf-a0"/><path d="${ln}" class="cf-l0"/>
  <g clip-path="url(#${pid}c)"><path d="${ar}" class="cf-a1"/><path d="${ln}" class="cf-l1"/></g>
- <line id="${pid}cur" class="cf-cur" x1="-9" x2="-9" y1="0" y2="${H}"/></svg>`}
+ ${mini?"":`<line id="${pid}cur" class="cf-cur" x1="-9" x2="-9" y1="0" y2="${H}"/>`}</svg>`}
 function cafCard(o,pid,extra=""){const meta=CAF_META[o.d],t=today(),last=o.h[o.h.length-1],prev=o.h[o.h.length-2],dom=last?Math.min(last.Km_Dominados,meta):0;
  const days=o.f?diff(o.f,t):null,hit=[...o.pts].reverse().find(p=>p.k<=dom);
  const rto=last&&N(last.Ritmo_Objetivo)?` a ${pace(last.Ritmo_Objetivo)} min/km`:"";
@@ -350,20 +376,28 @@ function wCard(w,big){
  if(isRest(w))return `<div class="card wk rest"><div class="tag rest">Descanso · ${esc(w.Tipo)}</div><div class="num">Día de recuperación</div>${detHTML(w)}<span class="muted">El coach indicó este descanso. No necesitas marcar nada.</span></div>`;
  const cls=isTest(w)?"test":"",tagPre=isTest(w)?"TEST · ":"";
  let act;
- if(isDone(w))act=`<button class="btn ghost" onclick="pctUI('${w.ID}')">✓ Completado · ${aPct(w)}% · cambiar %</button><button class="btn" onclick="setEstado('${w.ID}','NO')">Desmarcar</button>`;
+ if(isDone(w))act=`<button class="btn ghost" onclick="pctUI('${w.ID}')">✓ Completado · ${aPct(w)}% · cambiar</button><button class="btn" onclick="setEstado('${w.ID}','NO')">Desmarcar</button>`;
  else if(isClima(w))act=`<div class="row"><span class="bd clima">☁️ No realizado por clima</span><button class="btn s" onclick="setEstado('${w.ID}','NO')">Deshacer</button></div>`;
  else act=`<button class="btn pri" onclick="pctUI('${w.ID}')">Marcar como completado</button><button class="btn ghost" onclick="setEstado('${w.ID}','CLIMA')">No realizado por clima</button>`;
  return `<div class="card wk ${cls} ${big?"big":""} ${isDone(w)?"ok":""}"><div class="tag ${cls}">${tagPre}${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""}</div><div class="num${isAlt(w)?" alt":""}">${main(w)}</div>${detHTML(w)}${evalHTML(w)}${act}</div>`}
-async function setEstado(id,v,p=""){const w=W.find(x=>x.ID===id);w.Completado=v;w.Completitud_Aguila_pct=p;rev++;saveC();render();
- try{await post({action:"update",sheet:"Entrenamientos",id,data:{Completado:v,Completitud_Aguila_pct:p}});if(v==="SI")toast("¡Bien hecho, águila! 🦅")}catch(e){toast("No se pudo guardar")}}
+async function setEstado(id,v,p="",df=""){const w=W.find(x=>x.ID===id);w.Completado=v;w.Completitud_Aguila_pct=p;w.Dificultad=df;rev++;saveC();render();
+ try{await post({action:"update",sheet:"Entrenamientos",id,data:{Completado:v,Completitud_Aguila_pct:p,Dificultad:df}});if(v==="SI")toast("¡Bien hecho, águila! 🦅")}catch(e){toast("No se pudo guardar")}}
 function pctUI(id){const w=W.find(x=>x.ID===id),v=isDone(w)&&hasAP(w)?N(w.Completitud_Aguila_pct):100;
  modal(`<h2>¿Cuánto completaste?</h2><div class="muted">${esc(w.Deporte)}${w.Tipo?" · "+esc(w.Tipo):""} · ${main(w)}</div><div class="num" id="pv" style="text-align:center">${v}%</div>
  <div class="pq">${[25,50,75,100].map(n=>`<button type="button" class="chip" onclick="setP(${n})">${n}%</button>`).join("")}</div>
  <input id="pp" type="range" min="5" max="100" step="5" value="${v}" oninput="$('#pv').textContent=this.value+'%'">
+ <label>¿Qué tan dura estuvo la sesión?</label><div class="dfb"><div class="dfw" id="dfw" onscroll="dfS()" onpointerdown="dfTouch()">${DIF.map((x,i)=>`<button type="button" class="dfi" aria-label="${x[1]}" onclick="dfP(${i})">${x[0]}</button>`).join("")}</div></div><div class="dfl" id="dfl"></div>
  ${hasEv(w)?`<div class="muted" style="font-size:13px">El coach ya evaluó este entrenamiento con ${N(w.Eval_Completitud_pct)}%. Ese es el que cuenta.</div>`:""}
- <button class="btn pri" onclick="savePct('${id}')">Guardar</button>`)}
+ <button class="btn pri" onclick="savePct('${id}')">Guardar</button>`);
+ DFt=isDone(w)&&N(w.Dificultad)>0?1:0;DFi=DFt?Math.round(N(w.Dificultad))-1:2;$("#dfw").scrollLeft=DFi*DFW;dfU()}
+// ruleta de dificultad. Arranca en el centro pero no vale hasta que el águila la toque, para no llenar la hoja de "Intermedia" por defecto
+const DFW=92;let DFi=2,DFt=0;
+function dfU(){document.querySelectorAll(".dfi").forEach((b,i)=>b.classList.toggle("on",i===DFi));$("#dfw").classList.toggle("idle",!DFt);const l=$("#dfl");l.classList.toggle("idle",!DFt);l.textContent=DFt?DIF[DFi][1]:"Desliza o toca una carita"}
+function dfTouch(){if(!DFt){DFt=1;dfU()}}
+function dfS(){const e=$("#dfw");if(!e)return;const i=Math.max(0,Math.min(DIF.length-1,Math.round(e.scrollLeft/DFW)));if(i===DFi)return;DFi=i;dfU();if(DFt)sfx("tick",1+i*.2)}
+function dfP(i){DFt=1;DFi=i;dfU();sfx("tick",1+i*.2);$("#dfw").scrollTo({left:i*DFW,behavior:"smooth"})}
 function setP(n){$("#pp").value=n;$("#pv").textContent=n+"%"}
-function savePct(id){const p=+$("#pp").value;closeM();setEstado(id,"SI",p)}
+function savePct(id){if(!DFt)return toast("Elige qué tan dura estuvo la sesión");const p=+$("#pp").value,d=DFi+1;closeM();sfx("win");setEstado(id,"SI",p,d)}
 function go(d){tab="cal";sel=d;calM=d.slice(0,7);render();scrollTo(0,0)}
 function home(){
  const t=today(),tw=W.filter(w=>w.Fecha===t),mon=monday(t),we=addDays(mon,6),mes=t.slice(0,7),ml=MES[+mes.slice(5)-1];
