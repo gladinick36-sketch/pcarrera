@@ -4,6 +4,8 @@
 <meta name="theme-color" content="#000000">
 <title>Águilas · Team PCarrera 4x4</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2064%2064%22%3E%3Crect%20width%3D%2264%22%20height%3D%2264%22%20rx%3D%2214%22%20fill%3D%22%23d62839%22/%3E%3Cpath%20fill%3D%22%23fff%22%20d%3D%22M32%2010c3%200%205%202%205%205l1%202%202-1%2021-6c-2%2010-8%2019-16%2024l-4%202%203%2012-12-7-12%207%203-12-4-2C10%2027%204%2018%202%2010l21%206%202%201%201-2c0-3%202-6%206-6z%22%20transform%3D%22translate%280%206%29%20scale%281%29%22/%3E%3Cpath%20fill%3D%22%23d62839%22%20d%3D%22M36%2021l6%203-6%201z%22/%3E%3Ccircle%20cx%3D%2232%22%20cy%3D%2219%22%20r%3D%221.4%22%20fill%3D%22%23d62839%22/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="PCarrera"><meta name="apple-mobile-web-app-status-bar-style" content="black">
 <link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -112,6 +114,7 @@ nav.bar button.on{color:var(--tx)}nav.bar span{display:block;font-size:22px}
 .dfi{flex:0 0 92px;height:92px;padding:0;border:0;background:none;scroll-snap-align:center;font-size:36px;line-height:1;opacity:.45;cursor:pointer;transition:transform .12s,opacity .12s}
 .dfi.on{transform:scale(1.5);opacity:1}.dfw.idle .dfi.on{opacity:.45}
 .dfl{text-align:center;font:800 22px 'Barlow Condensed',sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:4px 0 6px}.dfl.idle{color:var(--mu);font:600 14px 'Barlow',sans-serif;text-transform:none;letter-spacing:0}
+.pa ol{margin:8px 0 6px;padding-left:20px;line-height:1.45}.pa li{margin:3px 0}
 .num.alt{font-size:40px}.pq{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 4px}.pq .chip{text-align:center}
 </style></head><body><div id="app"></div>
 <script>
@@ -148,6 +151,8 @@ const same=(a,b)=>{a=String(a).trim();b=String(b).trim();return a===b||(a!==""&&
 async function get(sheet){const r=await fetch(API+"?sheet="+sheet);return r.json()}
 // ?boot=ID (o * para el coach): todo en una llamada. null si falla o si el Apps Script publicado todavía no la tiene.
 async function getBoot(id){try{const r=await fetch(API+"?boot="+encodeURIComponent(id)),j=await r.json();return j&&j.ok?j:null}catch(e){return null}}
+// ?login= / ?coach=: el PIN se valida en el Apps Script. null = Apps Script viejo sin esa ruta (el login cae al método anterior)
+async function chk(q,k){try{const r=await fetch(API+"?"+q),j=await r.json();return j&&j.ok&&k in j?!!j[k]:null}catch(e){return null}}
 async function post(o){const r=await fetch(API,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(o)});return r.json()}
 function toast(m){const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),2600);if(/^(No se pudo|Error)|incorrecto/.test(m))sfx("err");else if(/✓|enviad/i.test(m))sfx("ok")}
 /* ---------- sonidos ----------
@@ -338,9 +343,12 @@ async function showLogin(){
  try{const A=(await get("Aguilas")).filter(a=>a.Nombre&&String(a.Activo).toUpperCase()!=="NO");window._A=A;
  app.innerHTML=hdr("Águilas")+`<main><h2>Entra, águila 🦅</h2><div class="card"><label>Tu nombre</label><select id="ln">${A.map(a=>`<option value="${esc(a.ID)}">${esc(a.Nombre)}</option>`).join("")}</select><label>PIN</label><input id="lp" type="password" inputmode="numeric" placeholder="••••"><button class="btn pri" onclick="doLogin()">Entrar</button></div></main>`}
  catch(e){app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar con el servidor. <button class="btn pri" onclick="showLogin()">Reintentar</button></div></main>'}}
-function doLogin(){const a=_A.find(x=>String(x.ID)===$("#ln").value);if(!a||!same(a.PIN,$("#lp").value))return toast("PIN incorrecto");
+async function doLogin(){const a=_A.find(x=>String(x.ID)===$("#ln").value),pin=$("#lp").value;if(!a)return;
+ let ok=await chk("login="+encodeURIComponent(a.ID)+"&pin="+encodeURIComponent(pin),"login");if(ok===null)ok=same(a.PIN,pin);
+ if(!ok)return toast("PIN incorrecto");
  me={ID:String(a.ID),Nombre:a.Nombre};try{localStorage.setItem("pc_a",JSON.stringify(me))}catch(e){}load()}
-function logout(){try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];CAF=null;CY=[];PD=[];PDok=0;CT=[];loaded=0;sync="";tab="home";showLogin()}
+function logout(){const ps=pGet();if(ps&&ps.tok)post({action:"unsubscribe",data:{Token:ps.tok}}).catch(()=>{});pSet(null); // el celular deja de recibir los avisos de este águila
+ try{localStorage.removeItem("pc_a");localStorage.removeItem(CK())}catch(e){}me=null;W=[];R=[];TM=[];RP=[];CAF=null;CY=[];PD=[];PDok=0;CT=[];loaded=0;sync="";tab="home";showLogin()}
 async function load(){
  if(!loaded){try{const c=JSON.parse(localStorage.getItem(CK()));if(c&&Array.isArray(c.W)){({W,R,TM,RP}=c);CAF=c.CAF||null;CY=c.CY||[];PD=c.PD||[];if(c.UC)UC=c.UC;if(c.D&&c.D.length)DISTS=c.D;loaded=1}}catch(e){}}
  if(loaded){sync="upd";render()}else app.innerHTML=hdr("Águilas")+'<main class="muted">Cargando tu semana…</main>';
@@ -359,7 +367,7 @@ async function load(){
  const keep=[...app.querySelectorAll("input[id],select[id]")].map(e=>[e.id,e.value]); // no borrar lo que el águila esté escribiendo
  render();keep.forEach(([i,v])=>{const e=document.getElementById(i);if(e)e.value=v});
  if(await cp){saveC();if(tab!=="races"&&tab!=="uni")render()}
- uPop()}
+ uPop();pCheck()}
  catch(e){if(loaded){sync="err";render()}else app.innerHTML=hdr("")+'<main><div class="card">No se pudo conectar. <button class="btn pri" onclick="load()">Reintentar</button></div></main>'}}
 // Maratón CAF: necesita Aguilas (CAF_Distancia), Config (fecha) y las dos pestañas CAF. Si Aguilas o Config fallan se queda lo de caché.
 async function loadX(){const[a,c,rc,dm,cy,pd]=await Promise.all([getS("Aguilas"),getS("Config"),getS("CAF_Recorrido"),getS("CAF_Dominio"),getS("Ciclos"),getS("Pedidos")]);
@@ -409,7 +417,7 @@ function home(){
  const nx=R.filter(r=>r.Estado==="Aprobada"&&r.Fecha>=t).sort((a,b)=>a.Fecha<b.Fecha?-1:1)[0];
  const days=nx?diff(nx.Fecha,t):0;
  return `<h2>Hoy · ${fmtL(t)}</h2>`+(tw.length?tw.map(w=>wCard(w,1)).join(""):`<div class="card wk"><div class="tag">Descanso</div><div class="num">Hoy toca recuperar</div><span class="muted">Estírate, hidrátate y come bien, águila.</span></div>`)
- +`<h2>Tu semana</h2><div class="card"><div class="strip">${strip}</div></div>`+uniHome()+cafHome()
+ +pHome()+`<h2>Tu semana</h2><div class="card"><div class="strip">${strip}</div></div>`+uniHome()+cafHome()
  +`<h2>Tu cumplimiento</h2><div class="g2 dns">${donut(cmp(W,mes+"-01",mes+"-31"),ml)}${donut(cmp(W,mon,we),"Esta semana")}</div>`
  +rtSec(W,[mes+"-01",mes+"-31",ml],[mon,we,"Esta semana"])
  +`<div class="stats"><div class="card"><div class="num">${k.toFixed(1)}</div><span class="muted">km esta semana</span></div><div class="card"><div class="num">+${Math.round(ds)}</div><span class="muted">m de desnivel</span></div></div>`
@@ -493,5 +501,43 @@ async function uPay(id){const r=$("#pr_"+id).value.trim(),f=$("#pf_"+id).value;i
  rev++;saveC();render();toast("Pago reportado ✓ El coach lo confirma")}catch(e){toast("No se pudo guardar")}}
 async function uCancel(id){if(!confirm("¿Cancelar este pedido?"))return;
  try{for(const x of PD.filter(x=>x.ID_Pedido===id)){await post({action:"delete",sheet:"Pedidos",id:x.ID});PD=PD.filter(y=>y!==x)}rev++;saveC();render();toast("Pedido cancelado")}catch(e){toast("No se pudo cancelar")}}
+/* ---------- Avisos del entreno (Firebase Cloud Messaging) ----------
+ El Apps Script manda a las 2:00 pm lo que le toca hoy a cada águila. Aquí solo se pide el permiso y se guarda el celular en Suscripciones.
+ iPhone: solo con iOS 16.4+ y la app abierta desde la pantalla de inicio. PUSH vacío (src/push.json sin llenar) = avisos apagados. */
+const PUSH={"config": {"apiKey": "AIzaSyAWg6sPIGPXPvl21TJ9Y8xnqIdAlq3sEsc", "authDomain": "pcarrera-33595.firebaseapp.com", "projectId": "pcarrera-33595", "storageBucket": "pcarrera-33595.firebasestorage.app", "messagingSenderId": "193683986995", "appId": "1:193683986995:web:b3226074c519d1229e6146"}, "vapidKey": "BHrx5kq03MIxZyBV1-kB8UnLaekYg0p49bh6vlk7YTrqgqMOSu33cnA0HZSj1r8u1s1mpdlvyqb4owUrIhceyvo"},FBV="https://www.gstatic.com/firebasejs/10.12.2/";
+const pOn=()=>!!(PUSH&&PUSH.config&&PUSH.config.apiKey&&PUSH.vapidKey);
+const isIOS=()=>/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const isApp=()=>navigator.standalone===true||matchMedia("(display-mode: standalone)").matches;
+const pCan=()=>"serviceWorker" in navigator&&"PushManager" in window&&"Notification" in window;
+const pDev=()=>isIOS()?"iPhone":/Android/.test(navigator.userAgent)?"Android":"Otro";
+const pGet=()=>{try{return JSON.parse(localStorage.getItem("pc_push"))}catch(e){return null}};
+const pSet=v=>{try{v?localStorage.setItem("pc_push",JSON.stringify(v)):localStorage.removeItem("pc_push")}catch(e){}};
+// off = sin Firebase · ok = activos · ios = falta instalar · old = iOS viejo o navegador sin avisos (WhatsApp, Instagram) · deny = bloqueados · ask = falta el toque
+function pState(){if(!pOn()||!me)return "off";const s=pGet();
+ if(pCan()&&Notification.permission==="granted"&&s&&s.id===me.ID&&s.tok)return "ok";
+ if(isIOS()&&!isApp())return "ios";
+ if(!pCan())return "old";
+ return Notification.permission==="denied"?"deny":"ask"}
+let FBM=null;
+const loadJS=u=>new Promise((ok,ko)=>{const s=document.createElement("script");s.src=u;s.onload=ok;s.onerror=ko;document.head.appendChild(s)});
+async function pToken(){const reg=await navigator.serviceWorker.register("sw.js");await navigator.serviceWorker.ready;
+ if(!FBM){await loadJS(FBV+"firebase-app-compat.js");await loadJS(FBV+"firebase-messaging-compat.js");if(!firebase.apps.length)firebase.initializeApp(PUSH.config);
+  FBM=firebase.messaging();FBM.onMessage(p=>{const n=p.notification||{};reg.showNotification(n.title||"PCarrera",{body:n.body||"",icon:"icon-192.png"})})} // con la app abierta Firebase no lo muestra solo
+ return FBM.getToken({vapidKey:PUSH.vapidKey,serviceWorkerRegistration:reg})}
+async function pActivar(){let p;try{p=await Notification.requestPermission()}catch(e){p=Notification.permission} // el permiso va primero: iOS solo lo muestra dentro del mismo toque
+ if(p!=="granted"){render();return toast(p==="denied"?"Bloqueaste los avisos. Abajo te digo cómo reactivarlos":"No se activaron los avisos")}
+ toast("Activando avisos…");
+ try{const tok=await pToken();if(!tok)throw 0;const o=await post({action:"subscribe",data:{ID_Aguila:me.ID,Token:tok,Dispositivo:pDev()}});if(!o||!o.ok)throw 0;
+  pSet({id:me.ID,tok});render();toast(o.enviado?"Avisos activados ✓ Te llegó uno de prueba":"Avisos activados ✓")}
+ catch(e){toast("No se pudieron activar los avisos. Avísale a Gladimir")}}
+// al abrir: Firebase renueva el token cada tanto; si cambió, se guarda el nuevo
+async function pCheck(){if(pState()!=="ok")return;try{const s=pGet(),tok=await pToken();
+ if(tok&&tok!==s.tok){const o=await post({action:"subscribe",data:{ID_Aguila:me.ID,Token:tok,Dispositivo:pDev()}});if(o&&o.ok)pSet({id:me.ID,tok})}}catch(e){}}
+function pHome(){const st=pState();if(st==="off"||st==="ok")return "";
+ const b={ask:`<b>Recibe a las 2:00 pm lo que te toca hoy</b><div class="muted">Un aviso al día. Si ya marcaste el entreno como completado, no te llega.</div><button class="btn pri" onclick="pActivar()">Activar avisos</button>`,
+ ios:`<b>Para recibir avisos en iPhone, instala la app</b><ol><li>Abre este link en <b>Safari</b>, no dentro de WhatsApp ni Instagram.</li><li>Toca Compartir ⬆ y luego <b>Agregar a pantalla de inicio</b>.</li><li>Abre la app desde el ícono nuevo, entra con tu nombre y PIN y toca <b>Activar avisos</b>.</li></ol><div class="muted">Necesita iOS 16.4 o más nuevo (Ajustes › General › Información).</div>`,
+ old:isIOS()?`<b>Tu iPhone no permite avisos de la app</b><div class="muted">Necesita iOS 16.4 o más nuevo. Actualízalo en Ajustes › General › Actualización de software.</div>`:`<b>Este navegador no permite avisos</b><div class="muted">Abre el link en <b>Chrome</b>, no dentro de WhatsApp ni Instagram: toca ⋮ › Abrir en Chrome.</div>`,
+ deny:isIOS()?`<b>Bloqueaste los avisos</b><div class="muted">Actívalos en Ajustes › Notificaciones › PCarrera, vuelve a abrir la app y toca el botón.</div><button class="btn" onclick="pActivar()">Ya los activé</button>`:`<b>Bloqueaste los avisos</b><div class="muted">Toca el candado junto a la dirección › Permisos › Notificaciones › Permitir, y recarga la página.</div>`}[st];
+ return `<div class="card pa"><div class="tag">🔔 Avisos del entreno</div>${b}</div>`}
 init();
 </script></body></html>
