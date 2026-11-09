@@ -134,7 +134,13 @@ const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&g
 const pad=n=>String(n).padStart(2,"0");
 const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const parseD=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
-const nd=v=>{if(!v)return"";v=String(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const d=new Date(v);return isNaN(d)?"":iso(d)};
+// Las celdas de fecha llegan de Sheets como instante UTC (medianoche de Caracas = 04:00Z). Se leen SIEMPRE en hora de
+// Caracas, no en la del celular: si no, un águila en Colombia (UTC-5) ve todo un día antes.
+const TZ_CLUB="America/Caracas";
+const nd=v=>{if(!v)return"";v=String(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const d=new Date(v);if(isNaN(d))return"";
+ try{const p={};new Intl.DateTimeFormat("en-US",{timeZone:TZ_CLUB,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(d).forEach(x=>p[x.type]=x.value);
+  if(p.year&&p.month&&p.day)return`${p.year}-${p.month}-${p.day}`}catch(e){}
+ return iso(new Date(d.getTime()+d.getTimezoneOffset()*6e4-4*36e5))};
 const addDays=(s,n)=>{const d=parseD(s);d.setDate(d.getDate()+n);return iso(d)};
 const diff=(a,b)=>Math.round((parseD(a)-parseD(b))/864e5);
 const monday=s=>{const d=parseD(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)};
