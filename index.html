@@ -179,6 +179,10 @@ const ce=(v,u)=>u==="distancia"?N(v)+" km":N(v)+" min";
 const isRest=w=>w.Deporte==="Descanso";
 const isFuerza=w=>w.Deporte==="Fuerza";
 const isTest=w=>String(w.EsTest).toUpperCase()==="SI";
+// bici: series en km (bloque u="km", o Series_Distancia_m en metros) y velocidad en km/h (Vel_Min_kmh / Vel_Max_kmh; en bloques vmin / vmax)
+const isBici=w=>w.Deporte==="Bici";
+const nF=v=>String(Math.round(N(v)*100)/100).replace(".",","); // número para mostrar, coma decimal
+const vel=(a,b)=>N(a)?nF(a)+(N(b)?" – "+nF(b):"")+" km/h":"";
 const sery=w=>!isRest(w)&&!isFuerza(w)&&/Series|Cambios/.test(w.Tipo);
 const isDone=w=>String(w.Completado).toUpperCase()==="SI";
 const isClima=w=>String(w.Completado).toUpperCase()==="CLIMA";
@@ -191,18 +195,23 @@ const pct=w=>hasEv(w)?N(w.Eval_Completitud_pct):aPct(w);
 const blk=w=>{try{const b=JSON.parse(w.Series_Bloques||"[]");return Array.isArray(b)?b:[]}catch(e){return[]}};
 const bset=w=>{const a=blk(w),S=Math.round(N(a[0]&&a[0].S))||1;return S>1&&a.length%S===0?{S,SR:N(a[0].SR),b:a.slice(0,a.length/S)}:{S:1,SR:0,b:a}};
 const isAlt=w=>sery(w)&&blk(w).length>0;
-const bTxt=b=>(N(b.r)>1?`${N(b.r)}×`:"")+(b.u==="min"?`${N(b.v)}'`:`${N(b.v)} m`);
-const bDet=(b,noRec)=>bTxt(b)+(N(b.rmin)?` · ${pace(b.rmin)}${N(b.rmax)?" – "+pace(b.rmax):""} min/km`:"")+(noRec?"":` · rec. ${recF(N(b.rec))}`);
-// texto corto de un bloque: 5×1000 m (misma distancia) · 100-200-300-400 m (escalera) · 2×400 m + 4×200 m (libre)
-const bsTxt=b=>{const u=b[0].u,un=u==="min"?"'":" m";
- if(b.every(x=>x.u===u&&N(x.v)===N(b[0].v)))return `${b.reduce((s,x)=>s+N(x.r),0)}×${N(b[0].v)}${un}`;
- if(b.every(x=>x.u===u&&N(x.r)===1))return b.map(x=>N(x.v)).join("-")+un;
+const bUn=u=>u==="min"?"'":u==="km"?" km":" m";
+const bTxt=b=>(N(b.r)>1?`${N(b.r)}×`:"")+nF(b.v)+bUn(b.u);
+const bDet=(b,noRec)=>bTxt(b)+(N(b.rmin)?` · ${pace(b.rmin)}${N(b.rmax)?" – "+pace(b.rmax):""} min/km`:"")+(N(b.vmin)?" · "+vel(b.vmin,b.vmax):"")+(noRec?"":` · rec. ${recF(N(b.rec))}`);
+// texto corto de un bloque: 5×1000 m (misma distancia) · 100-200-300-400 m (escalera) · 2×400 m + 4×200 m (libre) · 4×5 km (bici)
+const bsTxt=b=>{const u=b[0].u,un=bUn(u);
+ if(b.every(x=>x.u===u&&N(x.v)===N(b[0].v)))return `${b.reduce((s,x)=>s+N(x.r),0)}×${nF(b[0].v)}${un}`;
+ if(b.every(x=>x.u===u&&N(x.r)===1))return b.map(x=>nF(x.v)).join("-")+un;
  return b.map(bTxt).join(" + ")};
 const altTxt=w=>{const{S,b}=bset(w),t=bsTxt(b);return S>1?`${S}×(${t})`:t};
-const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):isAlt(w)?altTxt(w):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
-const plKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:isAlt(w)?blk(w).reduce((s,b)=>s+(b.u==="min"?0:N(b.r)*N(b.v)/1000),0):sery(w)?N(w.Series_Repeticiones)*N(w.Series_Distancia_m)/1000:N(w.Valor_Distancia_km);
+const main=w=>isRest(w)?esc(w.Tipo):isFuerza(w)?(N(w.Valor_Tiempo_min)?w.Valor_Tiempo_min+" min":"—"):isAlt(w)?altTxt(w):sery(w)?`${w.Series_Repeticiones}×`+(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min}'`:isBici(w)?`${nF(N(w.Series_Distancia_m)/1000)} km`:`${w.Series_Distancia_m} m`):(w.Modalidad==="tiempo"?`${w.Valor_Tiempo_min} min`:`${w.Valor_Distancia_km} km`);
+const bKm=b=>b.u==="min"?0:N(b.r)*N(b.v)/(b.u==="km"?1:1000);
+// km planificados de la sesión (con bici incluida, para el detalle)
+const sesKm=w=>(isRest(w)||isFuerza(w)||w.Modalidad==="tiempo")?0:isAlt(w)?blk(w).reduce((s,b)=>s+bKm(b),0):sery(w)?N(w.Series_Repeticiones)*N(w.Series_Distancia_m)/1000:N(w.Valor_Distancia_km);
+// km que cuentan para el volumen de la semana: la bici va aparte (decisión de Gladimir, 13 nov 2026)
+const plKm=w=>isBici(w)?0:sesKm(w);
 // km/desnivel confirmados: el real que cargó el coach; si no, lo planificado × el % que manda (coach > águila)
-const km=w=>N(w.Distancia_Real_km)||plKm(w)*pct(w)/100;
+const km=w=>isBici(w)?0:N(w.Distancia_Real_km)||plKm(w)*pct(w)/100;
 const dsn=w=>N(w.Desnivel_Real_m)||N(w.Desnivel_m)*pct(w)/100;
 // dificultad que declara el águila al completar: columna Dificultad = 1 a 5
 const DIF=[["😌","Muy suave"],["🙂","Suave"],["😐","Intermedia"],["😣","Dura"],["🥵","Ultra dura"]];
@@ -213,6 +222,8 @@ if(isRest(w)){if(w.Observaciones)d.push(["Obs.",w.Observaciones]);return d}
 if(isFuerza(w)){if(w.Ruta_Circuito)d.push(["Rutina",w.Ruta_Circuito]);tacMic(w,d);if(N(w.Calentamiento_min))d.push(["Calentamiento",ce(w.Calentamiento_min,w.Calentamiento_unidad)]);if(N(w.Enfriamiento_min))d.push(["Enfriamiento",ce(w.Enfriamiento_min,w.Enfriamiento_unidad)]);if(w.Observaciones)d.push(["Obs.",w.Observaciones]);if(difTxt(w))d.push(["Dificultad",difTxt(w)]);return d}
 if(w.Ruta_Circuito)d.push(["Ruta",w.Ruta_Circuito]);
 if(w.Ritmo_Min)d.push(["Ritmo",pace(w.Ritmo_Min)+(w.Ritmo_Max?" – "+pace(w.Ritmo_Max):"")+" min/km"]);
+if(N(w.Vel_Min_kmh))d.push(["Velocidad",vel(w.Vel_Min_kmh,w.Vel_Max_kmh)]);
+if(isBici(w)&&sery(w)&&sesKm(w))d.push(["Distancia bici",nF(sesKm(w))+" km · no suma al volumen de carrera"]);
 if(N(w.Desnivel_m))d.push(["Desnivel","+"+w.Desnivel_m+" m"]);
 if(isAlt(w)){const{S,SR,b}=bset(w);if(S>1)d.push(["Serie",`se repite ${S} veces · rec. entre series ${recF(SR)} min`]);b.forEach((x,i)=>d.push(["Repetición "+(i+1),bDet(x,S>1&&i===b.length-1)]))}
 else if(sery(w))d.push(["Recuperación",recF(N(w.Series_Recuperacion_seg))+" min"]);
@@ -224,6 +235,15 @@ const detHTML=w=>det(w).map(([k,v])=>`<div class="row${k==="Táctica"?" tx":""}"
 const hasDom=w=>w.Eval_Dominio_Ritmo_pct!==""&&w.Eval_Dominio_Ritmo_pct!=null;
 const evX=w=>[["Biomecánica",String(w.Eval_Biomecanica??"").trim()],["Ritmo",hasRt(w)?rtTxt(w):String(w.Eval_Ritmo??"").trim()],["Dominio ritmo competitivo",hasDom(w)?N(w.Eval_Dominio_Ritmo_pct)+"%":""]].filter(x=>x[1]);
 const evalHTML=w=>hasEv(w)?`<div class="row"><span>🦅 Coach</span><b>${w.Eval_Completitud_pct}% · ${N(w.Eval_PRs)} PR${N(w.Distancia_Real_km)?` · ${w.Distancia_Real_km} km`:""}${N(w.Desnivel_Real_m)?` · +${w.Desnivel_Real_m} m`:""}</b></div>${evX(w).map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")}${w.Eval_Nota?`<div class="row"><span>Nota</span><b>${esc(w.Eval_Nota)}</b></div>`:""}`:"";
+
+/* ---------- evaluación de carreras ----------
+ Carreras: Eval_Valoracion (Bien | Regular | Mal), Eval_Tiempo (seg), Eval_Posicion (texto libre), Eval_PR (SI | NO), Eval_Nota */
+const RVAL=[["Bien","ok"],["Regular","w"],["Mal","no"]];
+const hasREv=r=>!!String(r.Eval_Valoracion??"").trim();
+const rEvHTML=r=>{if(!hasREv(r))return "";const c=(RVAL.find(x=>x[0]===r.Eval_Valoracion)||[,"w"])[1],l=[];
+ if(N(r.Eval_Tiempo))l.push(["Tiempo",rtime(r.Eval_Tiempo)]);if(String(r.Eval_Posicion??"").trim())l.push(["Posición",r.Eval_Posicion]);
+ if(String(r.Eval_PR).toUpperCase()==="SI")l.push(["Récord personal","🏅 Sí"]);if(String(r.Eval_Nota??"").trim())l.push(["Nota",r.Eval_Nota]);
+ return `<div class="row"><span>🦅 Coach</span><b><span class="bd ${c}">${esc(r.Eval_Valoracion)}</span></b></div>`+l.map(([k,v])=>`<div class="row"><span>${k}</span><b>${esc(v)}</b></div>`).join("")};
 
 /* ---------- donas: cumplimiento y ritmo ---------- */
 // cumplimiento entre dos fechas: igual que el semáforo (solo días vencidos, sin descansos)
@@ -323,7 +343,7 @@ const UNI=[["top","Top",["XS","S","M","L"]],["franela","Franela manga corta",["X
 const UNI_COL=["Blanco","Negro"];
 const uN=k=>(UNI.find(u=>u[0]===k)||[,"?"])[1];
 const uniCfg=c=>{const g=k=>((c||[]).find(x=>x.Clave===k)||{}).Valor;
- return{cierre:nd(g("UNI_CIERRE"))||"2026-11-02",p:{top:N(g("UNI_PRECIO_TOP"))||18,franela:N(g("UNI_PRECIO_FRANELA"))||16.5,franelilla:N(g("UNI_PRECIO_FRANELILLA"))||14}}};
+ return{cierre:nd(g("UNI_CIERRE"))||"2026-11-30",p:{top:N(g("UNI_PRECIO_TOP"))||18,franela:N(g("UNI_PRECIO_FRANELA"))||16.5,franelilla:N(g("UNI_PRECIO_FRANELILLA"))||14}}};
 const eur=v=>(Math.round(N(v)*100)/100).toFixed(2).replace(".",",").replace(/,00$/,"")+" €";
 const UEST={"Pedido":"w","Pago reportado":"w","Pagado":"ok","Entregado":"ok"};
 // filas → pedidos (más reciente primero)
@@ -435,16 +455,20 @@ function cal(){calM=calM||today().slice(0,7);const[y,m]=calM.split("-").map(Numb
   return `<div class="cd ${ds===today()?"now":""} ${ds===sel?"sel":""}" onclick="sel='${ds}';render()">${d}<div class="dots">${real.length?`<i class="${real.every(isDone)?"g":"r"}"></i>`:""}${ra?'<i class="b"></i>':""}</div></div>`});
  const sw=sel?W.filter(w=>w.Fecha===sel):[],sr=sel?RA.find(r=>r.Fecha===sel):null;
  return `<div class="mn"><button onclick="mv(-1)">‹</button><h2 style="margin:0">${MES[m-1]} ${y}</h2><button onclick="mv(1)">›</button></div>${cyMeso(CY,calM+"-01",calM+"-31")}<div class="card"><div class="cal">${DIAS.map(d=>`<div class="h">${d[0]}</div>`).join("")}${c}</div><div class="muted" style="margin-top:10px;font-size:13px">🟢 hecho · 🟡 pendiente · 🔵 carrera</div></div>`
- +(sel?`<h2>${fmtL(sel)}</h2>`+(sr?`<div class="card wk big"><div class="tag">🏁 Carrera</div><div class="num">${esc(sr.Nombre_Carrera)}</div><div class="row"><span>Distancia</span><b>${N(sr.Distancia_km)} km</b></div><div class="row"><span>Sitio</span><b>${esc(sr.Sitio)}</b></div></div>`:"")+(sw.length?sw.map(w=>wCard(w,0)).join(""):(sr?"":'<div class="card muted">Día de descanso.</div>')):'<div class="muted">Toca un día para ver el entrenamiento.</div>')}
+ +(sel?`<h2>${fmtL(sel)}</h2>`+(sr?`<div class="card wk big"><div class="tag">🏁 Carrera</div><div class="num">${esc(sr.Nombre_Carrera)}</div><div class="row"><span>Distancia</span><b>${N(sr.Distancia_km)} km</b></div><div class="row"><span>Sitio</span><b>${esc(sr.Sitio)}</b></div>${rEvHTML(sr)}</div>`:"")+(sw.length?sw.map(w=>wCard(w,0)).join(""):(sr?"":'<div class="card muted">Día de descanso.</div>')):'<div class="muted">Toca un día para ver el entrenamiento.</div>')}
 function races(){
  const l=[...R].sort((a,b)=>a.Fecha<b.Fecha?-1:1).map(r=>{const c={Aprobada:"ok",Pendiente:"w",Rechazada:"no"}[r.Estado]||"w";
-  return `<div class="card"><div class="mn" style="margin:0"><b>${esc(r.Nombre_Carrera)}</b><span class="bd ${c}">${r.Estado==="Pendiente"?"Esperando aprobación":esc(r.Estado)}</span></div><div class="muted">${fmtL(r.Fecha)} · ${N(r.Distancia_km)} km · ${esc(r.Sitio)}</div></div>`}).join("");
+  return `<div class="card"><div class="mn" style="margin:0"><b>${esc(r.Nombre_Carrera)}</b><span class="bd ${c}">${r.Estado==="Pendiente"?"Esperando aprobación":esc(r.Estado)}</span></div><div class="muted">${fmtL(r.Fecha)} · ${N(r.Distancia_km)} km · ${esc(r.Sitio)}</div>${rEvHTML(r)}<div class="acts"><button class="btn s danger" onclick="delRace('${esc(r.ID)}')">🗑 Borrar</button></div></div>`}).join("");
  return `<h2>Agregar carrera</h2><div class="card"><label>Nombre</label><input id="rn" placeholder="Ej: 21K Ávila"><label>Fecha</label><input id="rd" type="date"><label>Distancia (km)</label><input id="rk" type="number" step="any" inputmode="decimal"><label>Sitio</label><input id="rs" placeholder="Lugar de la carrera"><button class="btn pri" onclick="addRace()">Enviar al coach</button></div><h2>Mis carreras</h2>${l||'<div class="muted">Sin carreras todavía.</div>'}<div class="muted" style="font-size:13px">Las carreras aprobadas aparecen también en tu Calendario.</div>`}
 async function addRace(){const n=$("#rn").value.trim(),d=$("#rd").value,k=$("#rk").value,s=$("#rs").value.trim();
  if(!n||!d||!k||!s)return toast("Completa nombre, fecha, distancia y sitio");
  const r={ID:uid("C"),ID_Aguila:me.ID,Nombre_Carrera:n,Fecha:d,Distancia_km:+k,Sitio:s,Estado:"Pendiente"};
  R.push({...r});rev++;saveC();render();
  try{await post({action:"add",sheet:"Carreras",data:r});toast("Enviada. El coach debe aprobarla.")}catch(e){toast("No se pudo guardar")}}
+// el águila puede borrar cualquier carrera suya, también aprobada o evaluada
+async function delRace(id){const r=R.find(x=>x.ID===id);if(!r)return;
+ if(!confirm(`¿Borrar "${r.Nombre_Carrera}"?`+(r.Estado==="Aprobada"?"\nYa está aprobada: sale de tu calendario"+(hasREv(r)?" y se pierde la evaluación del coach":"")+".":"")))return;
+ try{const x=await post({action:"delete",sheet:"Carreras",id});if(!x||!x.ok)throw 0;R=R.filter(y=>y.ID!==id);rev++;saveC();render();toast("Carrera borrada")}catch(e){toast("No se pudo borrar")}}
 function tiempos(){
  const rows=DISTS.map(([k,l])=>{const r=TM.find(x=>x.Distancia===k);
   return `<div class="row"><span>${l}</span><b>${r&&r.Tiempo?rtime(r.Tiempo)+(r.Fecha?" · "+fmtL(nd(r.Fecha)):""):"—"}</b></div>`}).join("");
